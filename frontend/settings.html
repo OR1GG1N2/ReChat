@@ -1,0 +1,1017 @@
+<!doctype html>
+<html lang="ru" class="w-full h-full overflow-hidden">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StreamVoice - Настройки</title>
+    <script>
+      tailwind = { config: { corePlugins: { preflight: false } } };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist%3Awght%40100..900&family=Geist+Mono%3Awght%40100..900&family=Inter%3Awght%40100..900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *, ::before, ::after {
+        box-sizing: border-box;
+      }
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden !important;
+        background-color: #0B0B0F;
+        color: #F4F4F6;
+        user-select: none;
+        font-family: 'Inter', system-ui, sans-serif;
+      }
+      /* Custom thin overlay scrollbars */
+      ::-webkit-scrollbar {
+        width: 4px;
+        height: 0px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #262631;
+        border-radius: 2px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #A855F7;
+      }
+
+      /* Custom Range Slider styling */
+      input[type=range] {
+        -webkit-appearance: none;
+        width: 100%;
+        background: transparent;
+      }
+      input[type=range]:focus {
+        outline: none;
+      }
+      input[type=range]::-webkit-slider-runnable-track {
+        width: 100%;
+        height: 4px;
+        cursor: pointer;
+        background: #1B1B23;
+        border-radius: 2px;
+      }
+      input[type=range]::-webkit-slider-thumb {
+        height: 16px;
+        width: 16px;
+        border-radius: 50%;
+        background: #FFFFFF;
+        cursor: pointer;
+        -webkit-appearance: none;
+        margin-top: -6px;
+        box-shadow: 0 0 6px rgba(168, 85, 247, 0.4);
+      }
+
+      .nav-tab {
+        transition: all 0.15s ease;
+      }
+      .nav-tab.active {
+        background-color: #A855F7 !important;
+      }
+      .nav-tab.active div, .nav-tab.active svg path {
+        color: #FFFFFF !important;
+        fill: #FFFFFF !important;
+      }
+    </style>
+  </head>
+  <body class="w-full h-full bg-[#0B0B0F] overflow-hidden">
+    <div
+      data-pencil-id="L6H6u8"
+      data-pencil-name="Settings and other"
+      class="box-border w-full h-full flex flex-row justify-start items-start bg-[#0B0B0F] overflow-hidden"
+    >
+      <!-- Sidebar -->
+      <div
+        data-pencil-id="N5qKs8"
+        data-pencil-name="Sidebar"
+        class="box-border w-[232px] shrink-0 h-full flex flex-col gap-[2px] p-[14px] justify-start items-start bg-[#131318] [border-width:0px_1px_0px_0px] [border-style:solid] [border-color:#262631] overflow-y-auto"
+      >
+        <!-- Brand -->
+        <div
+          data-pencil-id="CzhhF"
+          data-pencil-name="Brand"
+          class="box-border w-full h-[40px] shrink-0 flex flex-row gap-[10px] p-[4px] justify-start items-center"
+        >
+          <div
+            data-pencil-id="GJe6Z"
+            data-pencil-name="Logo"
+            class="box-border w-[32px] shrink-0 h-[32px] [background-image:linear-gradient(-45deg,_#A855F7_14.645%,_#EC4899_85.355%)] bg-no-repeat bg-[length:100%_100%] rounded-[9px] relative flex items-center justify-center"
+          >
+            <svg
+              data-pencil-id="p9SWg"
+              viewBox="0 0 14 14"
+              xmlns="http://www.w3.org/2000/svg"
+              class="box-border w-[16px] h-[16px]"
+            >
+              <path
+                d="M5.85156 1.76367q-0.16748 0.02734-0.30761 0.11279-0.08545 0.04102-0.27344 0.21875-0.18799 0.17432-0.91602 0.90235-1.08008 1.06299-1.12109 1.06982-0.04102 0.00684-0.85449 0.02051-0.66992 0-0.82373 0.01367-0.15381 0.01367-0.30762 0.09912-0.23926 0.11279-0.3999 0.30762-0.16064 0.19482-0.23243 0.44775-0.01367 0.08545-0.02734 0.3794l0 1.66455 0 1.66455q0.01367 0.29395 0.02734 0.3794 0.08545 0.30762 0.30762 0.52636 0.22559 0.21533 0.51953 0.31446 0.06836 0.01367 0.22217 0.02734l0.70068 0q0.82715 0.01367 0.86817 0.02051 0.04102 0.00684 1.09717 1.05957 1.05957 1.04932 1.12793 1.09033 0.22559 0.15381 0.48535 0.16748 0.25977 0.01367 0.50927-0.11279 0.11279-0.05469 0.2461-0.18116 0.1333-0.12646 0.18799-0.25292l0.02734-0.04102q0.04443-0.08545 0.05811-0.25293 0.01367-0.2085 0.02734-0.97754l0-7.07178q-0.01367-0.76904-0.02734-0.84082-0.08545-0.33496-0.35889-0.55029-0.27344-0.21875-0.6084-0.21875-0.11279 0-0.15381 0.01367z m5.27735 0.96729q-0.10938 0.02734-0.2085 0.11279-0.09912 0.08203-0.14014 0.16064-0.04101 0.0752-0.0581 0.17432-0.01367 0.0957-0.01367 0.16748 0.03076 0.19482 0.25293 0.43408 1.06299 1.14844 1.26123 2.67285 0.01367 0.19824 0.01367 0.54688 0 0.34863-0.01367 0.54687-0.19824 1.52441-1.26123 2.67286-0.16748 0.18115-0.21875 0.32129-0.04785 0.14014-0.01368 0.29394 0.0376 0.15381 0.15381 0.28027 0.11963 0.12647 0.31446 0.16407 0.19824 0.03418 0.35205-0.05127 0.11279-0.05469 0.34179-0.30078 0.23242-0.24609 0.42725-0.5127 0.81348-1.13135 1.02881-2.51562 0.21875-1.3877-0.21533-2.70362-0.19482-0.57422-0.45459-1.03564-0.25977-0.46484-0.63575-0.92627-0.32471-0.39307-0.49218-0.4751-0.08203-0.02734-0.22901-0.03418-0.14697-0.00684-0.1914 0.00684z"
+                fill="#FFFFFF"
+              ></path>
+            </svg>
+          </div>
+          <div
+            data-pencil-id="eervZ"
+            class="box-border flex-1 h-fit flex flex-col gap-[1px] justify-start items-start"
+          >
+            <div
+              data-pencil-id="Y01QxR"
+              class="text-[15px]/[normal] box-border text-[#F4F4F6] font-[Inter,system-ui,sans-serif] font-semibold text-left [white-space:nowrap]"
+            >
+              StreamVoice
+            </div>
+            <div
+              data-pencil-id="UoiKB"
+              class="text-[10px]/[normal] box-border text-[#6E6E7A] font-[Inter,system-ui,sans-serif] font-normal text-left [white-space:nowrap]"
+            >
+              панель стримера
+            </div>
+          </div>
+          <div
+            data-pencil-id="YJQqn"
+            class="box-border w-fit shrink-0 h-fit flex flex-row gap-0 p-[3px_7px] justify-start items-start bg-[#2A2A35] rounded-[6px]"
+          >
+            <div
+              data-pencil-id="aD5ae"
+              class="text-[9px]/[normal] box-border text-[#FACC15] font-['Geist_Mono',system-ui,sans-serif] font-semibold text-left [white-space:nowrap]"
+            >
+              PRO
+            </div>
+          </div>
+        </div>
+
+        <div
+          data-pencil-id="Q2PPkN"
+          class="box-border w-full h-fit shrink-0 flex flex-row gap-0 p-[14px_0px_6px_8px] justify-start items-start"
+        >
+          <div
+            data-pencil-id="CpprF"
+            class="text-[10px]/[normal] box-border text-[#6E6E7A] font-['Geist_Mono',system-ui,sans-serif] font-normal tracking-[1.2px] text-left [white-space:nowrap]"
+          >
+            НАСТРОЙКИ
+          </div>
+        </div>
+
+        <!-- Nav -->
+        <div
+          data-pencil-id="Nimah"
+          class="box-border w-full h-fit shrink-0 flex flex-col gap-[2px] p-[0px_0px_4px_0px] justify-start items-start"
+        >
+          <!-- Nav Озвучка сообщений -->
+          <div
+            id="tab-btn-voice"
+            onclick="switchTab('voice')"
+            class="nav-tab active cursor-pointer box-border w-full h-fit shrink-0 flex flex-row gap-[10px] p-[10px] justify-start items-center bg-[#A855F7] rounded-[8px]"
+          >
+            <svg
+              viewBox="0 0 14 14"
+              xmlns="http://www.w3.org/2000/svg"
+              class="box-border w-[16px] shrink-0 h-[16px]"
+            >
+              <path
+                d="M5.85156 1.76367q-0.16748 0.02734-0.30761 0.11279-0.08545 0.04102-0.27344 0.21875-0.18799 0.17432-0.91602 0.90235-1.08008 1.06299-1.12109 1.06982-0.04102 0.00684-0.85449 0.02051-0.66992 0-0.82373 0.01367-0.15381 0.01367-0.30762 0.09912-0.23926 0.11279-0.3999 0.30762-0.16064 0.19482-0.23243 0.44775-0.01367 0.08545-0.02734 0.3794l0 1.66455 0 1.66455q0.01367 0.29395 0.02734 0.3794 0.08545 0.30762 0.30762 0.52636 0.22559 0.21533 0.51953 0.31446 0.06836 0.01367 0.22217 0.02734l0.70068 0q0.82715 0.01367 0.86817 0.02051 0.04102 0.00684 1.09717 1.05957 1.05957 1.04932 1.12793 1.09033 0.22559 0.15381 0.48535 0.16748 0.25977 0.01367 0.50927-0.11279 0.11279-0.05469 0.2461-0.18116 0.1333-0.12646 0.18799-0.25292l0.02734-0.04102q0.04443-0.08545 0.05811-0.25293 0.01367-0.2085 0.02734-0.97754l0-7.07178q-0.01367-0.76904-0.02734-0.84082-0.08545-0.33496-0.35889-0.55029-0.27344-0.21875-0.6084-0.21875-0.11279 0-0.15381 0.01367z"
+                fill="#FFFFFF"
+              ></path>
+            </svg>
+            <div
+              class="text-[13px]/[normal] box-border text-[#FFFFFF] font-[Inter,system-ui,sans-serif] font-semibold text-left [white-space:nowrap]"
+            >
+              Озвучка сообщений
+            </div>
+          </div>
+
+          <!-- Nav Заказ треков -->
+          <div
+            id="tab-btn-tracks"
+            onclick="switchTab('tracks')"
+            class="nav-tab cursor-pointer hover:bg-[#1B1B23] box-border w-full h-fit shrink-0 flex flex-row gap-[10px] p-[10px] justify-start items-center bg-transparent rounded-[8px]"
+          >
+            <svg
+              viewBox="0 0 14 14"
+              xmlns="http://www.w3.org/2000/svg"
+              class="box-border w-[16px] shrink-0 h-[16px]"
+            >
+              <path
+                d="M8.59619 1.76367q-3.52734 0.60156-3.61279 0.63916-0.08203 0.03418-0.16065 0.12647-0.0752 0.08887-0.11279 0.16748-0.03418 0.0752-0.03418 0.45459l0 2.4917q0 2.82666-0.01367 2.82666l-0.12647-0.05469q-0.25293-0.12646-0.57421-0.19824-0.15381-0.04102-0.46143-0.04102-0.25293 0-0.3999 0.02735-0.14697 0.02734-0.35547 0.09912-0.49219 0.15381-0.87158 0.5332-0.37598 0.37598-0.55713 0.85107-0.08545 0.22559-0.1128 0.3794-0.02734 0.15381-0.02734 0.43408 0 0.28027 0.02734 0.43408 0.02734 0.15381 0.1128 0.3794 0.16748 0.4751 0.52978 0.84082 0.36572 0.36231 0.84082 0.52978 0.22559 0.08545 0.3794 0.1128 0.15381 0.02734 0.43408 0.02734 0.22559 0 0.30762-0.00684 0.08545-0.00684 0.19482-0.03418 0.78613-0.19824 1.26123-0.75879 0.19482-0.22217 0.30762-0.45117 0.11279-0.23242 0.19824-0.54004l0.05469-0.1709 0-7.44775 2.9668-0.50244 2.84375-0.46143q0.02734 0 0.02734 0.09571 0.01367 0.12646 0.01367 0.63232l0 4.14258-0.12646-0.06836q-0.2666-0.12646-0.50586-0.18115-0.23584-0.05811-0.53662-0.05811-0.30078 0-0.46827 0.04102-0.61523 0.12646-1.08007 0.5332-0.46143 0.40674-0.66993 1.0083-0.09912 0.29395-0.11279 0.65625-0.01367 0.43408 0.11279 0.79981 0.18115 0.57422 0.6084 0.97412 0.42725 0.39649 0.99463 0.56054 0.56738 0.16065 1.14844 0.02051 0.58105-0.14014 1.02881-0.55371 0.44775-0.41357 0.64258-1.00146l0.01367-0.05469q0.05811-0.15723 0.07177-0.32471 0.02734-0.23584 0.02735-0.97754l0-7.11279-0.04102-0.08545q-0.08545-0.16748-0.28027-0.2666l-0.01367-0.01367q-0.08545-0.04102-0.22559-0.02735-0.2085 0-0.89551 0.1128l-2.77197 0.46142z"
+                fill="#6E6E7A"
+              ></path>
+            </svg>
+            <div
+              class="text-[13px]/[normal] box-border text-[#A1A1AA] font-[Inter,system-ui,sans-serif] font-medium text-left [white-space:nowrap]"
+            >
+              Заказ треков
+            </div>
+          </div>
+
+          <!-- Nav Список реквестов -->
+          <div
+            id="tab-btn-requests"
+            onclick="switchTab('requests')"
+            class="nav-tab cursor-pointer hover:bg-[#1B1B23] box-border w-full h-fit shrink-0 flex flex-row gap-[10px] p-[10px] justify-start items-center bg-transparent rounded-[8px]"
+          >
+            <svg
+              viewBox="0 0 14 14"
+              xmlns="http://www.w3.org/2000/svg"
+              class="box-border w-[16px] shrink-0 h-[16px]"
+            >
+              <path
+                d="M1.65088 2.35156q-0.18115 0.02734-0.32129 0.16748-0.2085 0.21191-0.15381 0.50586 0.05469 0.29395 0.32129 0.42041 0.09912 0.04102 0.25293 0.04102 0.25293 0 0.42041-0.16748 0.12646-0.12646 0.15381-0.29395 0.05469-0.30762-0.15723-0.51611-0.2085-0.21191-0.51611-0.15723z m2.92578-0.01367q-0.23584 0.04102-0.38281 0.24609-0.14697 0.20166-0.09229 0.44092 0.01367 0.0957 0.04785 0.16748 0.0376 0.06836 0.1128 0.14014 0.07861 0.06836 0.16064 0.11279l0.09912 0.04102 7.88184 0 0.09912-0.04102q0.2666-0.12646 0.32129-0.42041 0.05469-0.29395-0.15381-0.50586-0.14014-0.14014-0.33496-0.16748-0.09912-0.02734-3.8794-0.02734-3.78027 0-3.87939 0.01367z"
+                fill="#6E6E7A"
+              ></path>
+            </svg>
+            <div
+              class="text-[13px]/[normal] box-border text-[#A1A1AA] font-[Inter,system-ui,sans-serif] font-medium text-left [white-space:nowrap]"
+            >
+              Список реквестов
+            </div>
+            <div
+              class="box-border w-[20px] shrink-0 h-[18px] bg-[#EC489922] rounded-[6px] relative flex items-center justify-center ml-auto"
+            >
+              <div
+                class="text-[10px]/[normal] box-border text-[#EC4899] font-['Geist_Mono',system-ui,sans-serif] font-normal text-center"
+              >
+                3
+              </div>
+            </div>
+          </div>
+
+          <!-- Nav AI-ответы на донаты -->
+          <div
+            id="tab-btn-ai"
+            onclick="switchTab('ai')"
+            class="nav-tab cursor-pointer hover:bg-[#1B1B23] box-border w-full h-fit shrink-0 flex flex-row gap-[10px] p-[10px] justify-start items-center bg-transparent rounded-[8px]"
+          >
+            <svg
+              viewBox="0 0 14 14"
+              xmlns="http://www.w3.org/2000/svg"
+              class="box-border w-[16px] shrink-0 h-[16px]"
+            >
+              <path
+                d="M6.84619 0.58789q-0.28027 0.04102-0.54687 0.22559-0.29395 0.2085-0.40674 0.57422-0.02734 0.08203-0.3418 1.75683-0.31445 1.67139-0.35889 1.76367-0.04102 0.08887-0.10937 0.16065-0.07178 0.08203-0.15381 0.11279-0.11279 0.04102-0.4751 0.12305l-1.28857 0.23926q-1.68164 0.32129-1.77734 0.34863-0.23926 0.07178-0.44434 0.27002-0.20166 0.19482-0.29395 0.44092-0.08887 0.24268-0.06152 0.50244 0.02734 0.25635 0.16748 0.4956 0.09912 0.16748 0.27344 0.30762 0.17432 0.14014 0.35889 0.19824 0.0957 0.02734 1.76367 0.34863l1.28515 0.25293q0.37939 0.06836 0.50586 0.10938 0.08203 0.04443 0.15381 0.11279 0.05469 0.08545 0.09912 0.16748 0.04102 0.12646 0.10938 0.50586l0.23926 1.24414q0.32129 1.68164 0.34863 1.76367 0.15381 0.46484 0.58789 0.67335 0.2666 0.14014 0.51953 0.14013 0.25293 0 0.51953-0.14013 0.43408-0.2085 0.58789-0.67335 0.02734-0.08203 0.3418-1.74658 0.31445-1.66797 0.3418-1.72265 0.02734-0.11279 0.12646-0.2085 0.09912-0.09912 0.21191-0.14355 0.06836-0.02734 1.73291-0.3418 1.66797-0.31445 1.75-0.3418 0.46484-0.15381 0.67335-0.58789 0.2666-0.51953 0-1.03906-0.09912-0.2085-0.28028-0.36231-0.18115-0.15381-0.39307-0.22558-0.0957-0.02734-1.77734-0.34863l-1.23047-0.23926q-0.37939-0.06836-0.50586-0.10938-0.0957-0.03076-0.15381-0.08545-0.10938-0.11279-0.1538-0.23925-0.02734-0.06836-0.3418-1.73291-0.31445-1.66797-0.3418-1.75-0.14014-0.46484-0.60498-0.68702-0.14014-0.07178-0.31445-0.09912-0.17432-0.02734-0.3418-0.01367z"
+                fill="#6E6E7A"
+              ></path>
+            </svg>
+            <div
+              class="text-[13px]/[normal] box-border text-[#A1A1AA] font-[Inter,system-ui,sans-serif] font-medium text-left [white-space:nowrap]"
+            >
+              AI-ответы на донаты
+            </div>
+          </div>
+
+          <!-- Nav Интеграции -->
+          <div
+            id="tab-btn-integrations"
+            onclick="switchTab('integrations')"
+            class="nav-tab cursor-pointer hover:bg-[#1B1B23] box-border w-full h-fit shrink-0 flex flex-row gap-[10px] p-[10px] justify-start items-center bg-transparent rounded-[8px]"
+          >
+            <svg
+              viewBox="0 0 14 14"
+              xmlns="http://www.w3.org/2000/svg"
+              class="box-border w-[16px] shrink-0 h-[16px]"
+            >
+              <path
+                d="M5.15088 0.60156q-0.0957 0.01367-0.17432 0.05127-0.0752 0.03418-0.15381 0.12647-0.0752 0.08887-0.11279 0.16748-0.03418 0.0752-0.03418 0.28369l0 2.84375-0.39307 0.01367q-0.32129 0-0.44775 0.02051-0.12646 0.02051-0.27344 0.09912-0.14697 0.0752-0.30078 0.229-0.15381 0.15381-0.22217 0.28028l0 0.03076q-0.07178 0.12305-0.08544 0.20849-0.02734 0.11279-0.02735 0.40674l0 1.10401q0 1.37402 0.02735 1.5415 0.15381 0.96729 0.84082 1.65088 0.43408 0.43408 0.96728 0.63232 0.30762 0.12305 0.57764 0.16748 0.27344 0.04102 0.70752 0.04102l0.37939 0 0 2.29688q0 0.18115 0.03418 0.2666 0.0376 0.08203 0.11963 0.16748 0.08545 0.08203 0.18799 0.1333 0.10596 0.04785 0.23242 0.04785 0.12646 0 0.229-0.04785 0.10596-0.05127 0.18799-0.1333 0.08545-0.08545 0.11963-0.16748 0.0376-0.08545 0.0376-0.2666l0-2.29688 0.37939 0q0.43066 0 0.7041-0.04102 0.27344-0.04443 0.58106-0.16748 0.5332-0.19824 0.96728-0.63232 0.68701-0.68359 0.84082-1.65088 0.02734-0.16748 0.02735-1.5415l0-1.10401q0-0.29395-0.02735-0.40674-0.01367-0.08545-0.08544-0.20849l0-0.01709q-0.06836-0.14014-0.22217-0.29395-0.15381-0.15381-0.30078-0.229-0.14697-0.07861-0.27344-0.09912-0.12646-0.02051-0.44775-0.02051l-0.39307-0.01367 0-2.84375q0-0.2085-0.0376-0.28369-0.03418-0.07861-0.11279-0.16748-0.0752-0.09229-0.15723-0.13672-0.11279-0.05469-0.2666-0.05469-0.15381 0-0.2666 0.05469-0.08203 0.04443-0.16065 0.13672-0.0752 0.08887-0.11279 0.16748-0.03418 0.0752-0.03418 0.28369l0 2.84375-2.35156 0 0-2.81299q0-0.23926-0.02734-0.29394-0.07178-0.19824-0.25293-0.30079-0.18115-0.10596-0.39307-0.06494z"
+                fill="#6E6E7A"
+              ></path>
+            </svg>
+            <div
+              class="text-[13px]/[normal] box-border text-[#A1A1AA] font-[Inter,system-ui,sans-serif] font-medium text-left [white-space:nowrap]"
+            >
+              Интеграции
+            </div>
+          </div>
+
+          <!-- Nav Общие -->
+          <div
+            id="tab-btn-general"
+            onclick="switchTab('general')"
+            class="nav-tab cursor-pointer hover:bg-[#1B1B23] box-border w-full h-fit shrink-0 flex flex-row gap-[10px] p-[10px] justify-start items-center bg-transparent rounded-[8px]"
+          >
+            <svg
+              viewBox="0 0 14 14"
+              xmlns="http://www.w3.org/2000/svg"
+              class="box-border w-[16px] shrink-0 h-[16px]"
+            >
+              <path
+                d="M6.80518 0.60156q-0.03076 0.01367-0.15381 0.02735-0.32471 0.05811-0.63916 0.23925-0.31445 0.18115-0.50928 0.43409-0.19824 0.23926-0.29053 0.46484-0.08887 0.22217-0.15722 0.5708-0.03076 0.18115-0.07178 0.28711-0.04102 0.10596-0.1333 0.19824-0.08887 0.08887-0.2085 0.15381-0.11963 0.06152-0.24609 0.08887-0.19482 0.02734-0.48877-0.08545-0.19824-0.08203-0.33838-0.10938-0.13672-0.03076-0.36231-0.03076-0.28027-0.01367-0.44775 0.03076-0.54688 0.10938-0.93994 0.48194-0.38965 0.37256-0.54346 0.88525-0.15381 0.50928-0.01367 1.03906 0.16748 0.61523 0.72803 1.06299 0.18115 0.15723 0.26318 0.3042 0.08545 0.14697 0.08545 0.35547 0 0.2085-0.08545 0.35547-0.08203 0.14697-0.26318 0.3042-0.40674 0.32129-0.58789 0.69726-0.21191 0.42041-0.21192 0.875 0 0.45459 0.21192 0.875 0.19482 0.37939 0.52978 0.646 0.33838 0.2666 0.7417 0.3623 0.60156 0.15381 1.26123-0.11279 0.25293-0.0957 0.4751-0.06152 0.22559 0.03418 0.41357 0.21191 0.18799 0.17432 0.23243 0.49561 0.05469 0.37598 0.20849 0.68701 0.22559 0.46143 0.67334 0.74853 0.44775 0.28711 0.96387 0.31446 0.61865 0.02734 1.1416-0.30078 0.52637-0.32813 0.76221-0.90235 0.08545-0.22558 0.12646-0.51269 0.04443-0.28711 0.16748-0.44092 0.12646-0.15381 0.29395-0.23926 0.31104-0.14014 0.68701 0 0.22559 0.09912 0.39307 0.13672 0.16748 0.03418 0.37597 0.03418 0.32471 0 0.61865-0.09912 0.43408-0.14014 0.75538-0.46143 0.46143-0.44775 0.55712-1.06299 0.09912-0.61865-0.18115-1.19287-0.18115-0.37598-0.57422-0.68359-0.19482-0.15381-0.28027-0.30762-0.08203-0.15723-0.08203-0.36572 0-0.2085 0.08203-0.35547 0.08545-0.14697 0.2666-0.3042 0.30762-0.23584 0.47852-0.51611 0.29395-0.43408 0.32129-0.94336 0.02734-0.5127-0.20508-0.97412-0.229-0.46143-0.65625-0.74854-0.42725-0.28711-0.91602-0.31787-0.25293-0.02734-0.47851 0.01026-0.22217 0.03418-0.48877 0.14697-0.2085 0.08203-0.35547 0.08203-0.14697 0-0.31787-0.08203-0.16748-0.08545-0.29395-0.23926-0.12305-0.15381-0.16748-0.44092-0.04102-0.28711-0.12646-0.51269-0.18115-0.43408-0.55371-0.74854-0.36914-0.31445-0.84424-0.41357-0.08545-0.02734-0.31787-0.04102-0.229-0.01367-0.28369 0z"
+                fill="#6E6E7A"
+              ></path>
+            </svg>
+            <div
+              class="text-[13px]/[normal] box-border text-[#A1A1AA] font-[Inter,system-ui,sans-serif] font-medium text-left [white-space:nowrap]"
+            >
+              Общие
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="box-border w-full flex-1 flex flex-row gap-0 justify-start items-start"
+        ></div>
+
+        <!-- Account -->
+        <div
+          class="box-border w-full h-fit shrink-0 flex flex-row gap-[10px] p-[10px] justify-start items-center bg-[#1B1B23] rounded-[10px]"
+        >
+          <div
+            class="box-border w-[30px] shrink-0 h-[30px] [background-image:linear-gradient(-45deg,_#06B6D4_14.645%,_#A855F7_85.355%)] bg-no-repeat bg-[length:100%_100%] rounded-[15px] relative flex items-center justify-center"
+          >
+            <div
+              class="text-[10px]/[normal] box-border text-[#FFFFFF] font-[Inter,system-ui,sans-serif] font-bold text-center"
+            >
+              КС
+            </div>
+          </div>
+          <div
+            class="box-border flex-1 h-fit flex flex-col gap-[2px] justify-start items-start"
+          >
+            <div
+              id="sidebar-channel-name"
+              class="text-[12px]/[normal] box-border text-[#F4F4F6] font-[Inter,system-ui,sans-serif] font-semibold text-left [white-space:nowrap]"
+            >
+              kirill_stream
+            </div>
+            <div
+              class="box-border w-fit h-fit shrink-0 flex flex-row gap-[6px] justify-start items-center"
+            >
+              <div
+                id="sidebar-status-dot"
+                class="box-border w-[6px] shrink-0 h-[6px] bg-[#22C55E] rounded-full"
+              ></div>
+              <div
+                id="sidebar-status-text"
+                class="text-[9px]/[normal] box-border text-[#6E6E7A] font-['Geist_Mono',system-ui,sans-serif] font-normal text-left [white-space:nowrap]"
+              >
+                LIVE · 2ч 14м
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content Area: Voice Settings Panel -->
+      <div
+        id="panel-voice"
+        class="box-border flex-1 h-full flex flex-col gap-[14px] p-[24px] justify-start items-start bg-[#0B0B0F] overflow-y-auto min-w-0"
+      >
+        <!-- Header -->
+        <div
+          class="box-border w-full h-fit shrink-0 flex flex-row gap-[12px] justify-start items-center"
+        >
+          <div
+            class="box-border flex-1 h-fit flex flex-col gap-[2px] justify-start items-start"
+          >
+            <div
+              class="text-[20px]/[normal] box-border text-[#F4F4F6] font-[Geist,system-ui,sans-serif] font-semibold text-left [white-space:nowrap]"
+            >
+              Озвучка сообщений
+            </div>
+            <div
+              class="text-[12.5px]/[normal] box-border text-[#6E6E7A] font-[Inter,system-ui,sans-serif] font-normal text-left [white-space:nowrap]"
+            >
+              Голосовое чтение событий и сообщений чата в реальном времени
+            </div>
+          </div>
+
+          <!-- Master Toggle Switch -->
+          <div
+            onclick="toggleMasterSwitch()"
+            class="cursor-pointer box-border w-fit shrink-0 h-fit flex flex-row gap-[8px] p-[8px] justify-start items-center bg-[#131318] [border:1px_solid_#262631] rounded-[10px]"
+          >
+            <div
+              id="master-switch-bg"
+              class="box-border w-[38px] shrink-0 h-[22px] bg-[#A855F7] rounded-[11px] relative transition-colors"
+            >
+              <div
+                id="master-switch-knob"
+                class="box-border w-[16px] h-[16px] absolute left-[19px] top-[3px] bg-[#FFFFFF] rounded-full transition-all"
+              ></div>
+            </div>
+            <div
+              id="master-switch-label"
+              class="text-[12.5px]/[normal] box-border text-[#F4F4F6] font-[Inter,system-ui,sans-serif] font-semibold text-left [white-space:nowrap]"
+            >
+              Озвучка включена
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Голос -->
+        <div
+          class="box-border w-full h-fit shrink-0 flex flex-col gap-[14px] p-[16px] justify-start items-start bg-[#131318] [border:1px_solid_#262631] rounded-[12px]"
+        >
+          <div
+            class="box-border w-full h-fit shrink-0 flex flex-row gap-[10px] justify-start items-center"
+          >
+            <div
+              class="text-[13.5px]/[normal] box-border text-[#F4F4F6] font-[Inter,system-ui,sans-serif] font-semibold text-left [white-space:nowrap]"
+            >
+              Голос
+            </div>
+            <div
+              class="box-border flex-1 h-[1px]"
+            ></div>
+            <div
+              onclick="testVoice()"
+              class="cursor-pointer hover:bg-[#A855F722] transition box-border w-fit shrink-0 h-fit flex flex-row gap-[6px] p-[7px_12px_7px_10px] justify-start items-center [border:1px_solid_#A855F7] rounded-[8px]"
+            >
+              <svg
+                viewBox="0 0 14 14"
+                xmlns="http://www.w3.org/2000/svg"
+                class="box-border w-[12px] shrink-0 h-[12px]"
+              >
+                <path
+                  d="M3.75293 1.20313q-0.5332 0.09912-0.91943 0.49218-0.38281 0.38965-0.46827 0.90918-0.02734 0.15381-0.02734 4.39551 0 4.2417 0.02734 4.39551 0.08545 0.51953 0.4751 0.90918 0.5332 0.54687 1.31934 0.51953 0.19482-0.01367 0.34179-0.04785 0.14697-0.0376 0.31446-0.10596 0.12646-0.05811 3.58887-2.07812 3.46582-2.02344 3.63671-2.13624 0.23584-0.15381 0.417-0.38281 0.18457-0.23242 0.27343-0.50586 0.09228-0.27344 0.09229-0.56738 0-0.29395-0.08545-0.57422-0.19482-0.5332-0.65625-0.85449-0.11279-0.08203-3.59912-2.11231-3.48633-2.03027-3.61279-2.10205-0.24951-0.12646-0.5503-0.16748-0.30078-0.04102-0.56738 0.01368z"
+                  fill="#A855F7"
+                ></path>
+              </svg>
+              <div
+                class="text-[12px]/[normal] box-border text-[#A855F7] font-[Inter,system-ui,sans-serif] font-semibold text-left [white-space:nowrap]"
+              >
+                Проверить голос
+              </div>
+            </div>
+          </div>
+
+          <!-- Voice Select Dropdown -->
+          <div
+            class="box-border w-full h-[48px] shrink-0 flex flex-row gap-[10px] p-[10px] justify-start items-center bg-[#1B1B23] rounded-[10px] relative"
+          >
+            <div
+              class="box-border w-[30px] shrink-0 h-[30px] bg-[#21212B] rounded-[15px] flex items-center justify-center"
+            >
+              <svg
+                viewBox="0 0 14 14"
+                xmlns="http://www.w3.org/2000/svg"
+                class="box-border w-[14px] h-[14px]"
+              >
+                <path
+                  d="M6.90088 0.58789q-0.64258 0.02734-1.18262 0.38623-0.53662 0.35547-0.80322 0.92969-0.14014 0.28027-0.19824 0.54687-0.02734 0.0957-0.02735 0.4751l-0.01367 4.40918 0.04102 0.16748q0.19824 0.78613 0.75879 1.26123 0.43408 0.36572 1.02197 0.51953 0.10938 0.02734 0.1914 0.03418 0.08545 0.00684 0.31104 0.00684 0.28027 0 0.43408-0.02734 0.15381-0.02734 0.3794-0.1128 0.46143-0.16748 0.82373-0.52295 0.36572-0.35889 0.54687-0.83398 0.04102-0.12646 0.08545-0.29395l0.05469-0.1709 0-4.15625q0-0.48877-0.02734-0.68701-0.01367-0.12646-0.07178-0.29394l-0.01367-0.02735q-0.23584-0.70068-0.80323-1.13476-0.56738-0.43408-1.30908-0.4751l-0.19824 0z"
+                  fill="#06B6D4"
+                ></path>
+              </svg>
+            </div>
+            <div class="flex-1 flex flex-col justify-center">
+              <select id="voice-select" class="w-full bg-transparent border-none text-[13px] font-semibold text-[#F4F4F6] focus:outline-none cursor-pointer">
+                <option value="alex" class="bg-[#131318] text-[#F4F4F6]">Алексей — Русский (ru-RU) · нейроголос v3</option>
+                <option value="elena" class="bg-[#131318] text-[#F4F4F6]">Елена — Русский (ru-RU) · нейроголос v3</option>
+                <option value="olga" class="bg-[#131318] text-[#F4F4F6]">Ольга — Русский (ru-RU) · нейроголос v3</option>
+                <option value="maxim" class="bg-[#131318] text-[#F4F4F6]">Максим — Русский (ru-RU) · нейроголос v3</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Speed Slider -->
+          <div
+            class="box-border w-full h-[40px] shrink-0 flex flex-row gap-[12px] justify-start items-center"
+          >
+            <div
+              class="w-[80px] text-[12.5px]/[normal] box-border text-[#A1A1AA] font-[Inter,system-ui,sans-serif] font-normal text-left [white-space:nowrap]"
+            >
+              Скорость
+            </div>
+            <div class="flex-1 flex items-center">
+              <input type="range" id="speed-range" min="0.5" max="2.0" step="0.1" value="1.0" oninput="document.getElementById('speed-val').innerText = parseFloat(this.value).toFixed(1) + 'x'" />
+            </div>
+            <div
+              id="speed-val"
+              class="w-[45px] text-right text-[11px]/[normal] box-border text-[#A855F7] font-['Geist_Mono',system-ui,sans-serif] font-semibold"
+            >
+              1.0x
+            </div>
+          </div>
+
+          <!-- Pitch Slider -->
+          <div
+            class="box-border w-full h-[40px] shrink-0 flex flex-row gap-[12px] justify-start items-center"
+          >
+            <div
+              class="w-[80px] text-[12.5px]/[normal] box-border text-[#A1A1AA] font-[Inter,system-ui,sans-serif] font-normal text-left [white-space:nowrap]"
+            >
+              Высота
+            </div>
+            <div class="flex-1 flex items-center">
+              <input type="range" id="pitch-range" min="-5" max="5" step="0.5" value="0" oninput="document.getElementById('pitch-val').innerText = (parseFloat(this.value) > 0 ? '+' : '') + parseFloat(this.value).toFixed(1)" />
+            </div>
+            <div
+              id="pitch-val"
+              class="w-[45px] text-right text-[11px]/[normal] box-border text-[#A855F7] font-['Geist_Mono',system-ui,sans-serif] font-semibold"
+            >
+              0.0
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Что озвучивать -->
+        <div
+          class="box-border w-full h-fit shrink-0 flex flex-col gap-[12px] p-[16px] justify-start items-start bg-[#131318] [border:1px_solid_#262631] rounded-[12px]"
+        >
+          <div class="text-[13.5px]/[normal] box-border text-[#F4F4F6] font-[Inter,system-ui,sans-serif] font-semibold text-left">
+            Что озвучивать
+          </div>
+          <div class="grid grid-cols-2 gap-[12px] w-full">
+            <label class="cursor-pointer flex flex-row items-center gap-[8px] p-[8px_12px] bg-[#1B1B23] rounded-[8px]">
+              <input type="checkbox" checked class="w-[16px] h-[16px] accent-[#A855F7] rounded cursor-pointer" />
+              <span class="text-[12.5px] text-[#F4F4F6] font-medium">Чат-сообщения</span>
+            </label>
+            <label class="cursor-pointer flex flex-row items-center gap-[8px] p-[8px_12px] bg-[#1B1B23] rounded-[8px]">
+              <input type="checkbox" checked class="w-[16px] h-[16px] accent-[#A855F7] rounded cursor-pointer" />
+              <span class="text-[12.5px] text-[#F4F4F6] font-medium">Донаты</span>
+            </label>
+            <label class="cursor-pointer flex flex-row items-center gap-[8px] p-[8px_12px] bg-[#1B1B23] rounded-[8px]">
+              <input type="checkbox" checked class="w-[16px] h-[16px] accent-[#A855F7] rounded cursor-pointer" />
+              <span class="text-[12.5px] text-[#F4F4F6] font-medium">Подписки и ресабы</span>
+            </label>
+            <label class="cursor-pointer flex flex-row items-center gap-[8px] p-[8px_12px] bg-[#1B1B23] rounded-[8px]">
+              <input type="checkbox" checked class="w-[16px] h-[16px] accent-[#A855F7] rounded cursor-pointer" />
+              <span class="text-[12.5px] text-[#F4F4F6] font-medium">Фолловеры</span>
+            </label>
+            <label class="cursor-pointer flex flex-row items-center gap-[8px] p-[8px_12px] bg-[#1B1B23] rounded-[8px] col-span-2">
+              <input type="checkbox" checked class="w-[16px] h-[16px] accent-[#A855F7] rounded cursor-pointer" />
+              <span class="text-[12.5px] text-[#F4F4F6] font-medium">Рейды</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Card Минимальный донат для озвучки -->
+        <div
+          class="box-border w-full h-fit shrink-0 flex flex-col gap-[12px] p-[16px] justify-start items-start bg-[#131318] [border:1px_solid_#262631] rounded-[12px]"
+        >
+          <div class="text-[13.5px]/[normal] box-border text-[#F4F4F6] font-[Inter,system-ui,sans-serif] font-semibold text-left">
+            Минимальный донат для озвучки
+          </div>
+          <div class="flex flex-row gap-[10px] items-center w-full">
+            <div class="flex-1 bg-[#1B1B23] p-[8px_12px] rounded-[10px] flex flex-row items-center justify-between">
+              <input id="min-donate-input" type="number" value="50" class="bg-transparent border-none text-[14px] font-semibold text-[#FACC15] focus:outline-none w-full font-['Geist_Mono']" />
+              <span class="text-[13px] text-[#FACC15] font-bold">₽</span>
+            </div>
+            <div class="flex flex-row gap-[6px]">
+              <button onclick="document.getElementById('min-donate-input').value = 10" class="bg-[#1B1B23] hover:bg-[#262631] text-[#A1A1AA] hover:text-[#FFFFFF] text-[11px] font-semibold p-[6px_10px] rounded-[6px] transition cursor-pointer">10 ₽</button>
+              <button onclick="document.getElementById('min-donate-input').value = 50" class="bg-[#A855F7] text-[#FFFFFF] text-[11px] font-semibold p-[6px_10px] rounded-[6px] transition cursor-pointer">50 ₽</button>
+              <button onclick="document.getElementById('min-donate-input').value = 100" class="bg-[#1B1B23] hover:bg-[#262631] text-[#A1A1AA] hover:text-[#FFFFFF] text-[11px] font-semibold p-[6px_10px] rounded-[6px] transition cursor-pointer">100 ₽</button>
+              <button onclick="document.getElementById('min-donate-input').value = 500" class="bg-[#1B1B23] hover:bg-[#262631] text-[#A1A1AA] hover:text-[#FFFFFF] text-[11px] font-semibold p-[6px_10px] rounded-[6px] transition cursor-pointer">500 ₽</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Фильтры и безопасность -->
+        <div
+          class="box-border w-full h-fit shrink-0 flex flex-col gap-[12px] p-[16px] justify-start items-start bg-[#131318] [border:1px_solid_#262631] rounded-[12px]"
+        >
+          <div class="text-[13.5px]/[normal] box-border text-[#F4F4F6] font-[Inter,system-ui,sans-serif] font-semibold text-left">
+            Фильтры и безопасность
+          </div>
+          <div class="flex flex-col gap-[10px] w-full">
+            <div class="flex flex-row justify-between items-center bg-[#1B1B23] p-[10px_12px] rounded-[8px]">
+              <span class="text-[12.5px] text-[#F4F4F6] font-medium">Фильтр мата и оскорблений</span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked class="sr-only peer" />
+                <div class="w-9 h-5 bg-[#262631] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#A855F7]"></div>
+              </label>
+            </div>
+            <div class="flex flex-row justify-between items-center bg-[#1B1B23] p-[10px_12px] rounded-[8px]">
+              <span class="text-[12.5px] text-[#F4F4F6] font-medium">Пропускать ссылки и URL</span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked class="sr-only peer" />
+                <div class="w-9 h-5 bg-[#262631] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#A855F7]"></div>
+              </label>
+            </div>
+            <div class="flex flex-row justify-between items-center bg-[#1B1B23] p-[10px_12px] rounded-[8px]">
+              <span class="text-[12.5px] text-[#F4F4F6] font-medium">Ограничение длины сообщения</span>
+              <span class="text-[11px] font-semibold text-[#A855F7] font-['Geist_Mono']">200 символов</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Buttons -->
+        <div class="flex flex-row gap-[12px] justify-end items-center w-full pt-[8px]">
+          <button class="bg-[#1B1B23] hover:bg-[#262631] text-[#A1A1AA] hover:text-[#FFFFFF] text-[12.5px] font-semibold p-[8px_16px] rounded-[8px] transition cursor-pointer">
+            Сбросить
+          </button>
+          <button class="bg-[#A855F7] hover:bg-[#9333EA] text-[#FFFFFF] text-[12.5px] font-semibold p-[8px_20px] rounded-[8px] flex flex-row items-center gap-[6px] transition cursor-pointer">
+            <svg viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg" class="w-[14px] h-[14px]">
+              <path d="M11.6667 3.5L5.25 9.91667L2.33334 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+            </svg>
+            Сохранить настройки
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Content Area: Integrations Panel -->
+      <div
+        id="panel-integrations"
+        class="hidden box-border flex-1 h-full flex flex-col gap-[14px] p-[24px] justify-start items-start bg-[#0B0B0F] overflow-y-auto min-w-0"
+      >
+        <!-- Header -->
+        <div class="box-border w-full h-fit shrink-0 flex flex-row gap-[12px] justify-start items-center">
+          <div class="box-border flex-1 h-fit flex flex-col gap-[2px] justify-start items-start">
+            <div class="text-[20px]/[normal] box-border text-[#F4F4F6] font-[Geist,system-ui,sans-serif] font-semibold text-left">
+              Интеграции и сервисы
+            </div>
+            <div class="text-[12.5px]/[normal] box-border text-[#6E6E7A] font-[Inter,system-ui,sans-serif] font-normal text-left">
+              Подключение стриминговых платформ, чатов и донатных систем
+            </div>
+          </div>
+        </div>
+
+        <!-- Twitch Integration Main Card -->
+        <div class="box-border w-full h-fit shrink-0 flex flex-col gap-[16px] p-[20px] justify-start items-start bg-[#131318] [border:1px_solid_#262631] rounded-[14px] relative overflow-hidden">
+          <!-- Card Header & Status Banner -->
+          <div class="flex flex-row justify-between items-center w-full pb-[12px] [border-width:0_0_1px_0] [border-style:solid] [border-color:#262631]">
+            <div class="flex flex-row items-center gap-[12px]">
+              <div class="w-[40px] h-[40px] rounded-[10px] bg-gradient-to-br from-[#9146FF] to-[#6441A5] flex items-center justify-center shadow-lg shadow-[#9146FF33]">
+                <!-- Twitch Icon -->
+                <svg viewBox="0 0 24 24" fill="currentColor" class="w-[22px] h-[22px] text-white">
+                  <path d="M11.571 4.714h1.715v5.143h-1.715zm4.715 0h1.714v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/>
+                </svg>
+              </div>
+              <div class="flex flex-col">
+                <div class="flex flex-row items-center gap-[8px]">
+                  <span class="text-[16px] font-bold text-[#F4F4F6]">Twitch Chat & Events</span>
+                  <span class="text-[10px] font-bold bg-[#9146FF22] text-[#A855F7] px-[8px] py-[2px] rounded-[6px] border border-[#9146FF44]">Официальный протокол</span>
+                </div>
+                <span class="text-[12px] text-[#6E6E7A]">Прямое чтение чата в реальном времени через IRC / WebSocket</span>
+              </div>
+            </div>
+
+            <!-- Dynamic Status Badge -->
+            <div id="twitch-status-badge" class="flex flex-row items-center gap-[8px] bg-[#1B1B23] px-[12px] py-[6px] rounded-[8px] border border-[#262631]">
+              <div id="twitch-status-dot" class="w-[8px] h-[8px] rounded-full bg-[#6E6E7A]"></div>
+              <span id="twitch-status-text" class="text-[12px] font-semibold text-[#6E6E7A]">Отключено</span>
+            </div>
+          </div>
+
+          <!-- Connection Form -->
+          <div class="flex flex-col gap-[14px] w-full pt-[4px]">
+            <!-- Channel Name Input -->
+            <div class="flex flex-col gap-[6px]">
+              <label class="text-[12.5px] font-semibold text-[#A1A1AA]">Имя канала на Twitch (Channel Name)</label>
+              <div class="flex flex-row items-center bg-[#1B1B23] border border-[#262631] focus-within:border-[#A855F7] rounded-[10px] px-[12px] py-[8px] transition">
+                <span class="text-[#6E6E7A] font-mono font-bold mr-[6px]">@</span>
+                <input
+                  id="twitch-channel-input"
+                  type="text"
+                  placeholder="kristi_plays"
+                  value="kristi_plays"
+                  class="bg-transparent border-none text-[13.5px] text-[#F4F4F6] font-semibold focus:outline-none w-full font-mono"
+                />
+              </div>
+              <p class="text-[11px] text-[#6E6E7A]">Укажите логин стримера или вашего канала Twitch, чат которого вы хотите озвучивать.</p>
+            </div>
+
+            <!-- OAuth Token Optional Input -->
+            <div class="flex flex-col gap-[6px]">
+              <div class="flex flex-row justify-between items-center">
+                <label class="text-[12.5px] font-semibold text-[#A1A1AA]">OAuth токен бота (Опционально)</label>
+                <a href="https://twitchapps.com/tmi/" target="_blank" class="text-[11px] text-[#A855F7] hover:underline font-medium">Получить OAuth токен ↗</a>
+              </div>
+              <div class="flex flex-row items-center bg-[#1B1B23] border border-[#262631] focus-within:border-[#A855F7] rounded-[10px] px-[12px] py-[8px] transition">
+                <input
+                  id="twitch-oauth-input"
+                  type="password"
+                  placeholder="oauth:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  class="bg-transparent border-none text-[13.5px] text-[#F4F4F6] font-mono focus:outline-none w-full"
+                />
+                <button
+                  type="button"
+                  onclick="toggleOAuthVisibility()"
+                  class="text-[11px] text-[#6E6E7A] hover:text-[#A1A1AA] font-semibold ml-[8px] cursor-pointer"
+                >
+                  Показать
+                </button>
+              </div>
+              <p class="text-[11px] text-[#6E6E7A]">Оставьте пустым для анонимного чтения чата без авторизации. Токен нужен только для отправки сообщений от имени вашего бота.</p>
+            </div>
+
+            <!-- Tracked Event Features Checkboxes -->
+            <div class="flex flex-col gap-[8px] pt-[6px]">
+              <span class="text-[12.5px] font-semibold text-[#A1A1AA]">Отслеживать события Twitch</span>
+              <div class="grid grid-cols-2 gap-[10px] w-full">
+                <label class="cursor-pointer flex flex-row items-center gap-[8px] p-[8px_12px] bg-[#1B1B23] rounded-[8px]">
+                  <input type="checkbox" checked class="w-[16px] h-[16px] accent-[#A855F7] rounded cursor-pointer" />
+                  <span class="text-[12px] text-[#F4F4F6] font-medium">Чат-сообщения (IRC)</span>
+                </label>
+                <label class="cursor-pointer flex flex-row items-center gap-[8px] p-[8px_12px] bg-[#1B1B23] rounded-[8px]">
+                  <input type="checkbox" checked class="w-[16px] h-[16px] accent-[#A855F7] rounded cursor-pointer" />
+                  <span class="text-[12px] text-[#F4F4F6] font-medium">Уведомления о подписках (Subs)</span>
+                </label>
+                <label class="cursor-pointer flex flex-row items-center gap-[8px] p-[8px_12px] bg-[#1B1B23] rounded-[8px]">
+                  <input type="checkbox" checked class="w-[16px] h-[16px] accent-[#A855F7] rounded cursor-pointer" />
+                  <span class="text-[12px] text-[#F4F4F6] font-medium">Фолловеры</span>
+                </label>
+                <label class="cursor-pointer flex flex-row items-center gap-[8px] p-[8px_12px] bg-[#1B1B23] rounded-[8px]">
+                  <input type="checkbox" checked class="w-[16px] h-[16px] accent-[#A855F7] rounded cursor-pointer" />
+                  <span class="text-[12px] text-[#F4F4F6] font-medium">Рейды и хосты</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notification Toast Message -->
+          <div id="twitch-toast" class="hidden w-full p-[10px_14px] rounded-[8px] text-[12px] font-semibold transition"></div>
+
+          <!-- Action Buttons -->
+          <div class="flex flex-row gap-[12px] justify-end items-center w-full pt-[8px]">
+            <button
+              id="btn-twitch-check"
+              onclick="checkTwitchStatus()"
+              class="bg-[#1B1B23] hover:bg-[#262631] text-[#A1A1AA] hover:text-[#FFFFFF] text-[12.5px] font-semibold p-[8px_16px] rounded-[8px] transition cursor-pointer"
+            >
+              Проверить статус
+            </button>
+            <button
+              id="btn-twitch-connect"
+              onclick="connectTwitch()"
+              class="bg-[#A855F7] hover:bg-[#9333EA] text-[#FFFFFF] text-[12.5px] font-semibold p-[8px_20px] rounded-[8px] flex flex-row items-center gap-[6px] transition cursor-pointer shadow-lg shadow-[#A855F733]"
+            >
+              <svg viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg" class="w-[14px] h-[14px] fill-current">
+                <path d="M5.85156 1.76367q-0.16748 0.02734-0.30761 0.11279-0.08545 0.04102-0.27344 0.21875-0.18799 0.17432-0.91602 0.90235-1.08008 1.06299-1.12109 1.06982-0.04102 0.00684-0.85449 0.02051-0.66992 0-0.82373 0.01367-0.15381 0.01367-0.30762 0.09912-0.23926 0.11279-0.3999 0.30762-0.16064 0.19482-0.23243 0.44775-0.01367 0.08545-0.02734 0.3794l0 1.66455 0 1.66455q0.01367 0.29395 0.02734 0.3794 0.08545 0.30762 0.30762 0.52636 0.22559 0.21533 0.51953 0.31446 0.06836 0.01367 0.22217 0.02734l0.70068 0q0.82715 0.01367 0.86817 0.02051 0.04102 0.00684 1.09717 1.05957 1.05957 1.04932 1.12793 1.09033 0.22559 0.15381 0.48535 0.16748 0.25977 0.01367 0.50927-0.11279 0.11279-0.05469 0.2461-0.18116 0.1333-0.12646 0.18799-0.25292l0.02734-0.04102q0.04443-0.08545 0.05811-0.25293 0.01367-0.2085 0.02734-0.97754l0-7.07178q-0.01367-0.76904-0.02734-0.84082-0.08545-0.33496-0.35889-0.55029-0.27344-0.21875-0.6084-0.21875-0.11279 0-0.15381 0.01367z"/>
+              </svg>
+              <span>Подключить Twitch</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Other Platforms Section -->
+        <div class="flex flex-col gap-[12px] w-full pt-[8px]">
+          <span class="text-[13.5px] font-semibold text-[#F4F4F6]">Другие сервисы и донаты</span>
+          <div class="grid grid-cols-2 gap-[14px] w-full">
+
+            <!-- DonationAlerts Card -->
+            <div class="box-border p-[16px] bg-[#131318] border border-[#262631] rounded-[12px] flex flex-row items-center justify-between opacity-80 hover:opacity-100 transition">
+              <div class="flex flex-row items-center gap-[12px]">
+                <div class="w-[36px] h-[36px] rounded-[8px] bg-gradient-to-br from-[#F59E0B] to-[#D97706] flex items-center justify-center text-white font-bold text-[14px]">
+                  DA
+                </div>
+                <div class="flex flex-col">
+                  <span class="text-[13.5px] font-bold text-[#F4F4F6]">DonationAlerts</span>
+                  <span class="text-[11px] text-[#6E6E7A]">Озвучка донатов</span>
+                </div>
+              </div>
+              <span class="text-[10px] font-semibold bg-[#262631] text-[#A1A1AA] px-[8px] py-[3px] rounded-[6px]">Скоро</span>
+            </div>
+
+            <!-- YouTube Live Card -->
+            <div class="box-border p-[16px] bg-[#131318] border border-[#262631] rounded-[12px] flex flex-row items-center justify-between opacity-80 hover:opacity-100 transition">
+              <div class="flex flex-row items-center gap-[12px]">
+                <div class="w-[36px] h-[36px] rounded-[8px] bg-gradient-to-br from-[#EF4444] to-[#B91C1C] flex items-center justify-center text-white font-bold text-[14px]">
+                  YT
+                </div>
+                <div class="flex flex-col">
+                  <span class="text-[13.5px] font-bold text-[#F4F4F6]">YouTube Live</span>
+                  <span class="text-[11px] text-[#6E6E7A]">Чат прямых трансляций</span>
+                </div>
+              </div>
+              <span class="text-[10px] font-semibold bg-[#262631] text-[#A1A1AA] px-[8px] py-[3px] rounded-[6px]">Скоро</span>
+            </div>
+
+            <!-- VK Play Live Card -->
+            <div class="box-border p-[16px] bg-[#131318] border border-[#262631] rounded-[12px] flex flex-row items-center justify-between opacity-80 hover:opacity-100 transition">
+              <div class="flex flex-row items-center gap-[12px]">
+                <div class="w-[36px] h-[36px] rounded-[8px] bg-gradient-to-br from-[#3B82F6] to-[#1D4ED8] flex items-center justify-center text-white font-bold text-[14px]">
+                  VK
+                </div>
+                <div class="flex flex-col">
+                  <span class="text-[13.5px] font-bold text-[#F4F4F6]">VK Play Live</span>
+                  <span class="text-[11px] text-[#6E6E7A]">Чат VK Play</span>
+                </div>
+              </div>
+              <span class="text-[10px] font-semibold bg-[#262631] text-[#A1A1AA] px-[8px] py-[3px] rounded-[6px]">Скоро</span>
+            </div>
+
+            <!-- Trovo Card -->
+            <div class="box-border p-[16px] bg-[#131318] border border-[#262631] rounded-[12px] flex flex-row items-center justify-between opacity-80 hover:opacity-100 transition">
+              <div class="flex flex-row items-center gap-[12px]">
+                <div class="w-[36px] h-[36px] rounded-[8px] bg-gradient-to-br from-[#10B981] to-[#047857] flex items-center justify-center text-white font-bold text-[14px]">
+                  TR
+                </div>
+                <div class="flex flex-col">
+                  <span class="text-[13.5px] font-bold text-[#F4F4F6]">Trovo Live</span>
+                  <span class="text-[11px] text-[#6E6E7A]">Trovo IRC чат</span>
+                </div>
+              </div>
+              <span class="text-[10px] font-semibold bg-[#262631] text-[#A1A1AA] px-[8px] py-[3px] rounded-[6px]">Скоро</span>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <script>
+      function switchTab(tabId) {
+        // Update sidebar nav buttons
+        document.querySelectorAll('.nav-tab').forEach(btn => {
+          btn.classList.remove('active', 'bg-[#A855F7]');
+          btn.classList.add('bg-transparent');
+          const txt = btn.querySelector('div');
+          if (txt) {
+            txt.classList.remove('text-[#FFFFFF]');
+            txt.classList.add('text-[#A1A1AA]');
+          }
+          const svgPath = btn.querySelector('svg path');
+          if (svgPath) {
+            svgPath.setAttribute('fill', '#6E6E7A');
+          }
+        });
+
+        const activeBtn = document.getElementById('tab-btn-' + tabId);
+        if (activeBtn) {
+          activeBtn.classList.add('active', 'bg-[#A855F7]');
+          activeBtn.classList.remove('bg-transparent');
+          const txt = activeBtn.querySelector('div');
+          if (txt) {
+            txt.classList.add('text-[#FFFFFF]');
+            txt.classList.remove('text-[#A1A1AA]');
+          }
+          const svgPath = activeBtn.querySelector('svg path');
+          if (svgPath) {
+            svgPath.setAttribute('fill', '#FFFFFF');
+          }
+        }
+
+        // Toggle panel views
+        const voicePanel = document.getElementById('panel-voice');
+        const integrationsPanel = document.getElementById('panel-integrations');
+
+        if (tabId === 'integrations') {
+          voicePanel.classList.add('hidden');
+          integrationsPanel.classList.remove('hidden');
+          checkTwitchStatus();
+        } else {
+          voicePanel.classList.remove('hidden');
+          integrationsPanel.classList.add('hidden');
+        }
+      }
+
+      function toggleMasterSwitch() {
+        const bg = document.getElementById('master-switch-bg');
+        const knob = document.getElementById('master-switch-knob');
+        const label = document.getElementById('master-switch-label');
+        if (bg.classList.contains('bg-[#A855F7]')) {
+          bg.classList.remove('bg-[#A855F7]');
+          bg.classList.add('bg-[#262631]');
+          knob.style.left = '3px';
+          label.innerText = 'Озвучка выключена';
+          label.classList.remove('text-[#F4F4F6]');
+          label.classList.add('text-[#6E6E7A]');
+        } else {
+          bg.classList.remove('bg-[#262631]');
+          bg.classList.add('bg-[#A855F7]');
+          knob.style.left = '19px';
+          label.innerText = 'Озвучка включена';
+          label.classList.remove('text-[#6E6E7A]');
+          label.classList.add('text-[#F4F4F6]');
+        }
+      }
+
+      function testVoice() {
+        const voiceSelect = document.getElementById('voice-select');
+        const selectedVoice = voiceSelect ? voiceSelect.options[voiceSelect.selectedIndex].text : 'Алексей';
+        if (window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance('Проверка озвучки сообщения в программе StreamVoice.');
+          utterance.lang = 'ru-RU';
+          const speed = parseFloat(document.getElementById('speed-range').value);
+          utterance.rate = speed;
+          window.speechSynthesis.speak(utterance);
+        }
+      }
+
+      function toggleOAuthVisibility() {
+        const input = document.getElementById('twitch-oauth-input');
+        if (input.type === 'password') {
+          input.type = 'text';
+        } else {
+          input.type = 'password';
+        }
+      }
+
+      let isTwitchConnected = false;
+
+      async function checkTwitchStatus() {
+        try {
+          if (window.go && window.go.main && window.go.main.App && window.go.main.App.GetTwitchStatus) {
+            const status = await window.go.main.App.GetTwitchStatus();
+            updateTwitchUI(status.connected, status.channel, status.error);
+          }
+        } catch (e) {
+          console.log('GetTwitchStatus error:', e);
+        }
+      }
+
+      async function connectTwitch() {
+        const channelInput = document.getElementById('twitch-channel-input').value.trim();
+        const oauthInput = document.getElementById('twitch-oauth-input').value.trim();
+
+        if (!channelInput) {
+          showToast('Пожалуйста, введите название канала Twitch', 'error');
+          return;
+        }
+
+        if (isTwitchConnected) {
+          // Disconnect
+          try {
+            if (window.go && window.go.main && window.go.main.App && window.go.main.App.DisconnectTwitch) {
+              await window.go.main.App.DisconnectTwitch();
+              updateTwitchUI(false, channelInput, '');
+              showToast('Отключено от Twitch', 'info');
+            } else {
+              updateTwitchUI(false, channelInput, '');
+              showToast('Отключено от Twitch (симуляция)', 'info');
+            }
+          } catch (e) {
+            showToast('Ошибка при отключении: ' + e, 'error');
+          }
+          return;
+        }
+
+        // Connect
+        showToast('Подключение к чату Twitch #' + channelInput + '...', 'info');
+        try {
+          if (window.go && window.go.main && window.go.main.App && window.go.main.App.ConnectTwitch) {
+            const res = await window.go.main.App.ConnectTwitch(channelInput, oauthInput);
+            if (res.success) {
+              updateTwitchUI(true, channelInput, '');
+              showToast(res.message || ('Успешно подключено к #' + channelInput), 'success');
+            } else {
+              showToast(res.message || 'Не удалось подключиться', 'error');
+            }
+          } else {
+            // Simulated connection for preview
+            updateTwitchUI(true, channelInput, '');
+            showToast('Успешно подключено к #' + channelInput + ' (симуляция)', 'success');
+          }
+        } catch (e) {
+          showToast('Ошибка подключения: ' + e, 'error');
+        }
+      }
+
+      function updateTwitchUI(connected, channel, errorMsg) {
+        isTwitchConnected = connected;
+        const dot = document.getElementById('twitch-status-dot');
+        const text = document.getElementById('twitch-status-text');
+        const btn = document.getElementById('twitch-connect-btn') || document.getElementById('btn-twitch-connect');
+        const sidebarName = document.getElementById('sidebar-channel-name');
+
+        if (channel && sidebarName) {
+          sidebarName.innerText = channel;
+        }
+
+        if (connected) {
+          dot.className = 'w-[8px] h-[8px] rounded-full bg-[#22C55E] animate-pulse';
+          text.className = 'text-[12px] font-semibold text-[#22C55E]';
+          text.innerText = 'Подключено к #' + (channel || 'channel');
+          if (btn) {
+            btn.className = 'bg-[#EF4444] hover:bg-[#DC2626] text-[#FFFFFF] text-[12.5px] font-semibold p-[8px_20px] rounded-[8px] flex flex-row items-center gap-[6px] transition cursor-pointer shadow-lg shadow-[#EF444433]';
+            btn.querySelector('span').innerText = 'Отключить Twitch';
+          }
+        } else {
+          dot.className = 'w-[8px] h-[8px] rounded-full bg-[#6E6E7A]';
+          text.className = 'text-[12px] font-semibold text-[#6E6E7A]';
+          text.innerText = errorMsg ? ('Ошибка: ' + errorMsg) : 'Отключено';
+          if (btn) {
+            btn.className = 'bg-[#A855F7] hover:bg-[#9333EA] text-[#FFFFFF] text-[12.5px] font-semibold p-[8px_20px] rounded-[8px] flex flex-row items-center gap-[6px] transition cursor-pointer shadow-lg shadow-[#A855F733]';
+            btn.querySelector('span').innerText = 'Подключить Twitch';
+          }
+        }
+      }
+
+      function showToast(msg, type) {
+        const toast = document.getElementById('twitch-toast');
+        if (!toast) return;
+        toast.classList.remove('hidden', 'bg-[#22C55E22]', 'text-[#22C55E]', 'border-[#22C55E44]', 'bg-[#EF444422]', 'text-[#EF4444]', 'border-[#EF444444]', 'bg-[#3B82F622]', 'text-[#3B82F6]', 'border-[#3B82F644]');
+        toast.classList.add('border');
+
+        if (type === 'success') {
+          toast.classList.add('bg-[#22C55E22]', 'text-[#22C55E]', 'border-[#22C55E44]');
+        } else if (type === 'error') {
+          toast.classList.add('bg-[#EF444422]', 'text-[#EF4444]', 'border-[#EF444444]');
+        } else {
+          toast.classList.add('bg-[#3B82F622]', 'text-[#3B82F6]', 'border-[#3B82F644]');
+        }
+
+        toast.innerText = msg;
+        setTimeout(() => {
+          toast.classList.add('hidden');
+        }, 5000);
+      }
+
+      // Check status on load
+      window.addEventListener('DOMContentLoaded', () => {
+        checkTwitchStatus();
+      });
+    </script>
+  </body>
+</html>
