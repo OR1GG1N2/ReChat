@@ -7,6 +7,8 @@ export namespace config {
 	    showBadges: boolean;
 	    maxMessages: number;
 	    oauthToken: string;
+	    username: string;
+	    clientId: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSettings(source);
@@ -20,6 +22,8 @@ export namespace config {
 	        this.showBadges = source["showBadges"];
 	        this.maxMessages = source["maxMessages"];
 	        this.oauthToken = source["oauthToken"];
+	        this.username = source["username"];
+	        this.clientId = source["clientId"];
 	    }
 	}
 

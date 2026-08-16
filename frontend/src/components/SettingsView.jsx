@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { GetSettings, SaveSettings } from '../../wailsjs/go/main/App';
+import { GetSettings, SaveSettings, StartTwitchAuth, LogoutTwitch, ConnectChannel, DisconnectChannel } from '../../wailsjs/go/main/App';
+import { EventsOn } from '../../wailsjs/runtime/runtime';
 
-export default function SettingsView({ onClose }) {
+export default function SettingsView({ onClose, currentStatus }) {
   const [formData, setFormData] = useState({
     defaultChannel: '',
     fontSize: 14,
@@ -9,8 +10,10 @@ export default function SettingsView({ onClose }) {
     showBadges: true,
     maxMessages: 300,
     oauthToken: '',
+    username: '',
   });
   const [statusMsg, setStatusMsg] = useState('');
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   useEffect(() => {
     GetSettings()
@@ -18,10 +21,51 @@ export default function SettingsView({ onClose }) {
         if (loaded) setFormData(loaded);
       })
       .catch((err) => console.error('Failed to load settings:', err));
+
+    const unoffAuth = EventsOn('auth:updated', (updatedSettings) => {
+      setFormData((prev) => ({ ...prev, ...updatedSettings }));
+      setIsAuthenticating(false);
+      setStatusMsg(`Authenticated successfully as @${updatedSettings.username}!`);
+    });
+
+    return () => {
+      if (typeof unoffAuth === 'function') unoffAuth();
+    };
   }, []);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleStartAuth = () => {
+    setIsAuthenticating(true);
+    setStatusMsg('Opening browser for Twitch login...');
+    StartTwitchAuth().catch((err) => {
+      setIsAuthenticating(false);
+      setStatusMsg('Auth failed: ' + String(err));
+    });
+  };
+
+  const handleLogout = () => {
+    LogoutTwitch().then(() => {
+      setFormData((prev) => ({ ...prev, oauthToken: '', username: '' }));
+      setStatusMsg('Logged out.');
+    });
+  };
+
+  const handleConnectNow = () => {
+    if (!formData.defaultChannel.trim()) {
+      setStatusMsg('Please enter a channel name first.');
+      return;
+    }
+    ConnectChannel(formData.defaultChannel.trim())
+      .then(() => setStatusMsg(`Connecting to #${formData.defaultChannel}...`))
+      .catch((err) => setStatusMsg('Connect error: ' + String(err)));
+  };
+
+  const handleDisconnectNow = () => {
+    DisconnectChannel();
+    setStatusMsg('Disconnected from chat.');
   };
 
   const handleSubmit = (e) => {
@@ -44,7 +88,7 @@ export default function SettingsView({ onClose }) {
       {/* Top Header Bar */}
       <header className="px-5 py-3 border-b border-neutral-800 bg-neutral-900 flex justify-between items-center">
         <h1 className="text-sm font-bold text-neutral-100 flex items-center gap-2">
-          <span>⚙</span> Settings (Stored in .db)
+          <span>⚙</span> Settings & Authentication
         </h1>
         <button
           onClick={onClose}
@@ -54,7 +98,7 @@ export default function SettingsView({ onClose }) {
         </button>
       </header>
 
-      {/* Settings Form Body (Full Window) */}
+      {/* Settings Form Body */}
       <form onSubmit={handleSubmit} className="flex-1 p-6 space-y-6 overflow-y-auto max-w-2xl mx-auto w-full">
         {statusMsg && (
           <div className="px-4 py-2 bg-neutral-800 border border-neutral-700 text-xs text-neutral-200 rounded">
@@ -62,52 +106,93 @@ export default function SettingsView({ onClose }) {
           </div>
         )}
 
-        {/* General Options */}
+        {/* Twitch Authentication Section */}
+        <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 space-y-4">
+          <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-800 pb-2 flex justify-between items-center">
+            <span>Twitch Account</span>
+            {formData.username && (
+              <span className="text-emerald-400 normal-case font-mono font-normal">
+                ● Logged in as @{formData.username}
+              </span>
+            )}
+          </h2>
+
+          {formData.username ? (
+            <div className="flex items-center justify-between bg-neutral-950 p-3 rounded border border-neutral-800">
+              <div>
+                <div className="text-xs text-neutral-200 font-bold">@{formData.username}</div>
+                <div className="text-[11px] text-neutral-500">Authenticated via Twitch OAuth Browser Login</div>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-3 py-1.5 bg-red-950 border border-red-800 text-red-300 text-xs rounded hover:bg-red-900 transition-colors"
+              >
+                Log Out
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-neutral-400">
+                Click below to log in with your Twitch account in your web browser.
+              </p>
+              <div>
+                <button
+                  type="button"
+                  onClick={handleStartAuth}
+                  disabled={isAuthenticating}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded transition-colors flex items-center gap-2"
+                >
+                  {isAuthenticating ? 'Waiting for browser login...' : '🔑 Login via Twitch Browser'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Channel Connection Section */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 space-y-4">
           <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-800 pb-2">
-            General Options
+            Channel Connection
           </h2>
           
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div>
-              <label htmlFor="settings-default-channel-full" className="block text-xs font-medium text-neutral-300 mb-1">
-                Default Twitch Channel
+              <label htmlFor="settings-default-channel" className="block text-xs font-medium text-neutral-300 mb-1">
+                Target Twitch Channel Name
               </label>
-              <input
-                id="settings-default-channel-full"
-                type="text"
-                placeholder="e.g. shroud"
-                value={formData.defaultChannel || ''}
-                onChange={(e) => handleChange('defaultChannel', e.target.value)}
-                className="w-full px-3 py-2 bg-neutral-950 border border-neutral-800 rounded text-neutral-100 text-xs focus:outline-none focus:border-neutral-600 font-mono"
-              />
-              <p className="text-[11px] text-neutral-500 mt-1">Automatically connects to this channel on startup.</p>
-            </div>
-
-            <div>
-              <label htmlFor="settings-max-messages-full" className="block text-xs font-medium text-neutral-300 mb-1">
-                Max Chat Messages History ({formData.maxMessages || 300})
-              </label>
-              <input
-                id="settings-max-messages-full"
-                type="range"
-                min="50"
-                max="1000"
-                step="50"
-                value={formData.maxMessages || 300}
-                onChange={(e) => handleChange('maxMessages', parseInt(e.target.value, 10))}
-                className="w-full accent-neutral-400"
-              />
-              <div className="flex justify-between text-[10px] text-neutral-500 mt-1">
-                <span>50 msgs</span>
-                <span>500 msgs</span>
-                <span>1000 msgs</span>
+              <div className="flex gap-2">
+                <input
+                  id="settings-default-channel"
+                  type="text"
+                  placeholder="e.g. shroud, xqc"
+                  value={formData.defaultChannel || ''}
+                  onChange={(e) => handleChange('defaultChannel', e.target.value)}
+                  className="flex-1 px-3 py-2 bg-neutral-950 border border-neutral-800 rounded text-neutral-100 text-xs focus:outline-none focus:border-neutral-600 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={handleConnectNow}
+                  className="px-4 py-2 bg-neutral-800 border border-neutral-700 hover:bg-neutral-700 text-neutral-200 text-xs rounded transition-colors"
+                >
+                  Connect Now
+                </button>
+                {currentStatus?.status === 'connected' && (
+                  <button
+                    type="button"
+                    onClick={handleDisconnectNow}
+                    className="px-3 py-2 bg-red-950 border border-red-800 text-red-300 text-xs rounded hover:bg-red-900 transition-colors"
+                  >
+                    Disconnect
+                  </button>
+                )}
               </div>
+              <p className="text-[11px] text-neutral-500 mt-1">Connects to live Twitch IRC chat feed.</p>
             </div>
           </div>
         </div>
 
-        {/* Appearance Options */}
+        {/* Appearance & Chat Options */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 space-y-4">
           <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-800 pb-2">
             Appearance & Chat Feed
@@ -115,11 +200,11 @@ export default function SettingsView({ onClose }) {
 
           <div className="space-y-4">
             <div>
-              <label htmlFor="settings-font-size-full" className="block text-xs font-medium text-neutral-300 mb-1">
+              <label htmlFor="settings-font-size" className="block text-xs font-medium text-neutral-300 mb-1">
                 Chat Font Size ({formData.fontSize || 14}px)
               </label>
               <select
-                id="settings-font-size-full"
+                id="settings-font-size"
                 value={formData.fontSize || 14}
                 onChange={(e) => handleChange('fontSize', parseInt(e.target.value, 10))}
                 className="w-full px-3 py-2 bg-neutral-950 border border-neutral-800 rounded text-neutral-100 text-xs focus:outline-none focus:border-neutral-600"
@@ -137,7 +222,7 @@ export default function SettingsView({ onClose }) {
                 <div className="text-[11px] text-neutral-500">Display timestamp prefixes like [15:04:05]</div>
               </div>
               <input
-                id="settings-show-timestamps-full"
+                id="settings-show-timestamps"
                 type="checkbox"
                 checked={!!formData.showTimestamps}
                 onChange={(e) => handleChange('showTimestamps', e.target.checked)}
@@ -148,42 +233,36 @@ export default function SettingsView({ onClose }) {
             <div className="flex items-center justify-between p-3 bg-neutral-950 border border-neutral-800 rounded">
               <div>
                 <div className="text-xs text-neutral-200 font-medium">Show User Badges</div>
-                <div className="text-[11px] text-neutral-500">Display sub/mod badges next to usernames</div>
+                <div className="text-[11px] text-neutral-500">Display subscriber/mod badges next to usernames</div>
               </div>
               <input
-                id="settings-show-badges-full"
+                id="settings-show-badges"
                 type="checkbox"
                 checked={!!formData.showBadges}
                 onChange={(e) => handleChange('showBadges', e.target.checked)}
                 className="rounded bg-neutral-900 border-neutral-700 text-neutral-400 focus:ring-0 cursor-pointer"
               />
             </div>
+
+            <div>
+              <label htmlFor="settings-max-messages" className="block text-xs font-medium text-neutral-300 mb-1">
+                Max Messages History ({formData.maxMessages || 300})
+              </label>
+              <input
+                id="settings-max-messages"
+                type="range"
+                min="50"
+                max="1000"
+                step="50"
+                value={formData.maxMessages || 300}
+                onChange={(e) => handleChange('maxMessages', parseInt(e.target.value, 10))}
+                className="w-full accent-neutral-400"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Authentication Options */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 space-y-4">
-          <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-800 pb-2">
-            Authentication (Optional)
-          </h2>
-          
-          <div>
-            <label htmlFor="settings-oauth-token-full" className="block text-xs font-medium text-neutral-300 mb-1">
-              Twitch OAuth Token
-            </label>
-            <input
-              id="settings-oauth-token-full"
-              type="password"
-              placeholder="oauth:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              value={formData.oauthToken || ''}
-              onChange={(e) => handleChange('oauthToken', e.target.value)}
-              className="w-full px-3 py-2 bg-neutral-950 border border-neutral-800 rounded text-neutral-100 text-xs focus:outline-none focus:border-neutral-600 font-mono"
-            />
-            <p className="text-[11px] text-neutral-500 mt-1">Optional for authenticated access or future chat posting.</p>
-          </div>
-        </div>
-
-        {/* Form Action Buttons */}
+        {/* Action Buttons */}
         <div className="pt-2 flex justify-end gap-3">
           <button
             type="button"

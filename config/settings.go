@@ -16,7 +16,9 @@ type AppSettings struct {
 	ShowTimestamps bool   `json:"showTimestamps"` // true / false
 	ShowBadges     bool   `json:"showBadges"`     // true / false
 	MaxMessages    int    `json:"maxMessages"`    // 100 - 1000
-	OAuthToken     string `json:"oauthToken"`     // optional oauth token
+	OAuthToken     string `json:"oauthToken"`     // oauth token
+	Username       string `json:"username"`       // authenticated user
+	ClientID       string `json:"clientId"`       // twitch client id
 }
 
 func DefaultSettings() AppSettings {
@@ -27,17 +29,19 @@ func DefaultSettings() AppSettings {
 		ShowBadges:     true,
 		MaxMessages:    300,
 		OAuthToken:     "",
+		Username:       "",
+		ClientID:       TwitchClientID,
 	}
 }
 
 func GetDBPath() string {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		return "settings.db"
+		return DBFileName
 	}
 	appDir := filepath.Join(configDir, "ReChat")
 	_ = os.MkdirAll(appDir, 0755)
-	return filepath.Join(appDir, "settings.db")
+	return filepath.Join(appDir, DBFileName)
 }
 
 func getDB() (*sql.DB, error) {
@@ -95,6 +99,12 @@ func LoadSettings() AppSettings {
 				}
 			case "oauthToken":
 				s.OAuthToken = val
+			case "username":
+				s.Username = val
+			case "clientId":
+				if val != "" {
+					s.ClientID = val
+				}
 			}
 		}
 	}
@@ -128,6 +138,8 @@ func SaveSettings(s AppSettings) error {
 		"showBadges":     strconv.FormatBool(s.ShowBadges),
 		"maxMessages":    strconv.Itoa(s.MaxMessages),
 		"oauthToken":     s.OAuthToken,
+		"username":       s.Username,
+		"clientId":       s.ClientID,
 	}
 
 	for k, v := range pairs {
