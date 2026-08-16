@@ -6,8 +6,16 @@ export function ConnectChannel(arg1:string):Promise<void>;
 
 export function DisconnectChannel():Promise<void>;
 
+export function GetJoinedChannels():Promise<Array<string>>;
+
 export function GetSettings():Promise<config.AppSettings>;
+
+export function JoinChannel(arg1:string):Promise<void>;
+
+export function LeaveChannel(arg1:string):Promise<void>;
+
+export function LogoutTwitch():Promise<void>;
 
 export function SaveSettings(arg1:config.AppSettings):Promise<void>;
 
-export function SetWindowSize(arg1:number,arg2:number):Promise<void>;
+export function StartTwitchAuth():Promise<void>;

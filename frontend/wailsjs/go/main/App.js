@@ -10,14 +10,30 @@ export function DisconnectChannel() {
   return window['go']['main']['App']['DisconnectChannel']();
 }
 
+export function GetJoinedChannels() {
+  return window['go']['main']['App']['GetJoinedChannels']();
+}
+
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
+}
+
+export function JoinChannel(arg1) {
+  return window['go']['main']['App']['JoinChannel'](arg1);
+}
+
+export function LeaveChannel(arg1) {
+  return window['go']['main']['App']['LeaveChannel'](arg1);
+}
+
+export function LogoutTwitch() {
+  return window['go']['main']['App']['LogoutTwitch']();
 }
 
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
 }
 
-export function SetWindowSize(arg1, arg2) {
-  return window['go']['main']['App']['SetWindowSize'](arg1, arg2);
+export function StartTwitchAuth() {
+  return window['go']['main']['App']['StartTwitchAuth']();
 }
