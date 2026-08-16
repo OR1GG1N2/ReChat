@@ -2,13 +2,12 @@
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "ReChat",
   "outputfilename": "ReChat",
-  "frontend:dir": "frontend",
-  "frontend:install": "",
-  "frontend:build": "",
-  "frontend:dev:watcher": "",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "ReChat Team",
-    "email": "dev@rechat.app"
+    "name": "Developer",
+    "email": "dev@example.com"
   }
 }
