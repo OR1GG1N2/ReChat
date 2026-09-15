@@ -16,15 +16,23 @@ export function GetSettings():Promise<config.AppSettings>;
 
 export function GetTTSVoices():Promise<Record<string, string>>;
 
+export function GetWidgetThemes():Promise<Array<string>>;
+
+export function GetWidgetURL():Promise<string>;
+
 export function JoinChannel(arg1:string):Promise<void>;
 
 export function LeaveChannel(arg1:string):Promise<void>;
 
 export function LogoutTwitch():Promise<void>;
 
+export function OpenThemesDir():Promise<void>;
+
 export function ResizeWindowForSettings(arg1:boolean):Promise<void>;
 
 export function SaveSettings(arg1:config.AppSettings):Promise<void>;
+
+export function SendMessage(arg1:string,arg2:string):Promise<void>;
 
 export function SpeakText(arg1:string,arg2:string):Promise<string>;
 

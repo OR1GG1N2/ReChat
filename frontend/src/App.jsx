@@ -7,20 +7,18 @@ import {
   GetEmotes,
   ResizeWindowForSettings,
   SpeakText,
+  JoinChannel,
+  SendMessage,
 } from '../wailsjs/go/main/App';
 import SettingsView from './components/SettingsView';
 import CustomTitleBar from './components/CustomTitleBar';
-import TwitchIcon from './components/TwitchIcon';
-import TwitchBadge from './components/TwitchBadge';
-import EmoteText from './components/EmoteText';
+import ChannelBar from './components/ChannelBar';
+import ChatMessage from './components/ChatMessage';
 import InlineEventMessage from './components/InlineEventMessage';
-import { getChannelColor, getTwitchIconColor } from './utils/channelColors';
-import {
-  Settings,
-  Radio,
-  EyeOff,
-  RadioTower,
-} from 'lucide-react';
+import NewMessagesBanner from './components/NewMessagesBanner';
+import TwitchIcon from './components/TwitchIcon';
+import { getTwitchIconColor } from './utils/channelColors';
+import { Radio, Plus, Settings, Send, LogIn, ChevronDown } from 'lucide-react';
 
 // Helper filters for ignoring commands, users, and emotes
 function isUserIgnored(user, ignoredUsers) {
@@ -55,6 +53,99 @@ function stripEmotesForTTS(text, emoteMap, msgEmoteMap) {
   return filtered.join(' ').trim();
 }
 
+// Check if message is eligible for TTS based on user criteria
+function isMessageEligibleForTTS(msg, s) {
+  if (s.ttsAllMessages !== false) {
+    return true;
+  }
+
+  const badges = msg.badges || '';
+  const isSub = badges.includes('subscriber');
+  const isVip = badges.includes('vip');
+  const isMod = badges.includes('moderator') || badges.includes('broadcaster');
+  const isReply = Boolean(
+    (msg.eventData && msg.eventData['reply-parent-msg-id']) ||
+    (msg.message && msg.message.startsWith('@'))
+  );
+  const isHighlighted = Boolean(
+    (msg.eventData && (msg.eventData['msg-id'] === 'highlighted-message' || msg.eventData['custom-reward-id'])) ||
+    msg.isHighlighted ||
+    msg.eventType === 'reward' ||
+    msg.eventType === 'highlighted'
+  );
+
+  if (s.ttsRepliesOnly && isReply) return true;
+  if (s.ttsHighlightedOnly && isHighlighted) return true;
+  if (s.ttsSubscribersOnly && isSub) return true;
+  if (s.ttsVipOnly && isVip) return true;
+  if (s.ttsModOnly && isMod) return true;
+
+  return false;
+}
+
+// Clean and prepare message content for TTS speech
+function formatTextForTTS(msg, s, emoteMap) {
+  let rawText = msg.message || '';
+  if (msg.eventType === 'reward' || msg.eventType === 'channel.channel_points_custom_reward_redemption.add') {
+    rawText = msg.message || msg.systemMsg || '';
+  } else if (msg.eventType === 'highlighted') {
+    rawText = msg.message || msg.systemMsg || '';
+  } else if (msg.isEvent) {
+    rawText = msg.systemMsg || msg.message || '';
+  }
+  if (!rawText) return '';
+
+  let text = rawText;
+
+  // 1. URLs / Links (if ttsIncludeLinks is false)
+  if (!s.ttsIncludeLinks) {
+    text = text.replace(/https?:\/\/\S+|www\.\S+/gi, '');
+  }
+
+  // 2. Mentions (if ttsIncludeMentions is false)
+  if (!s.ttsIncludeMentions) {
+    text = text.replace(/@[\w\d_]+/g, '');
+  }
+
+  // 3. Emotes (if ttsIncludeEmotes is false OR s.ttsFilterEmotes is true)
+  if (!s.ttsIncludeEmotes || s.ttsFilterEmotes) {
+    text = stripEmotesForTTS(text, emoteMap, msg.emoteMap);
+  }
+
+  // 4. Unicode Emoji (if ttsIncludeEmoji is false)
+  if (!s.ttsIncludeEmoji) {
+    text = text.replace(/[\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+  }
+
+  // 5. Remove blacklisted words or symbols (ttsRemoveWords)
+  if (s.ttsRemoveWords && typeof s.ttsRemoveWords === 'string') {
+    const removeList = s.ttsRemoveWords
+      .split(/[\n,]+/)
+      .map((w) => w.trim())
+      .filter(Boolean);
+    for (const token of removeList) {
+      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      text = text.replace(new RegExp(escaped, 'gi'), '');
+    }
+  }
+
+  text = text.replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+
+  // 6. Include author username (if ttsIncludeUsername is true)
+  if (s.ttsIncludeUsername) {
+    const author = msg.displayName || msg.user || '';
+    if (author) {
+      if (msg.eventType === 'reward' || msg.eventType === 'channel.channel_points_custom_reward_redemption.add') {
+        return `Заказ за баллы от ${author}: ${text}`;
+      }
+      return `${author} говорит: ${text}`;
+    }
+  }
+
+  return text;
+}
+
 export default function App() {
   const [activeView, setActiveView] = useState('chat'); // 'chat' or 'settings'
 
@@ -64,6 +155,8 @@ export default function App() {
   const [emoteMap, setEmoteMap] = useState({});
   const [messages, setMessages] = useState([]);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isTTSActive, setIsTTSActive] = useState(false);
 
   const [settings, setSettings] = useState({
     defaultChannel: '',
@@ -82,6 +175,21 @@ export default function App() {
     ttsEngine: 'yandex',
     ttsVoice: 'shitova.us',
     ttsVoiceLocal: '',
+    ttsSpeed: 1.0,
+    ttsAudioDevice: '',
+    ttsSkipHotkey: 'Escape',
+    ttsAllMessages: true,
+    ttsRepliesOnly: false,
+    ttsHighlightedOnly: false,
+    ttsSubscribersOnly: false,
+    ttsVipOnly: false,
+    ttsModOnly: false,
+    ttsIncludeUsername: false,
+    ttsIncludeLinks: false,
+    ttsIncludeEmotes: false,
+    ttsIncludeEmoji: false,
+    ttsIncludeMentions: true,
+    ttsRemoveWords: '',
     ignoreCommands: true,
     commandPrefixes: '!, /, ., $, ?',
     ignoreEmotesOnly: false,
@@ -94,12 +202,89 @@ export default function App() {
   const chatContainerRef = useRef(null);
   const ttsQueueRef = useRef([]);
   const ttsPlayingRef = useRef(false);
+  const currentAudioRef = useRef(null);
+  const currentUtteranceResolveRef = useRef(null);
   const settingsRef = useRef(settings);
+  const autoScrollRef = useRef(autoScroll);
 
-  // Keep settingsRef updated for closures
+  const [chatInput, setChatInput] = useState('');
+  const [activeSendChannel, setActiveSendChannel] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState('');
+  const [msgHistory, setMsgHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const chatInputRef = useRef(null);
+
+  useEffect(() => {
+    if (joinedChannels.length > 0 && (!activeSendChannel || !joinedChannels.includes(activeSendChannel))) {
+      setActiveSendChannel(joinedChannels[0]);
+    }
+  }, [joinedChannels, activeSendChannel]);
+
+  const handleSendMessage = async (e) => {
+    e?.preventDefault();
+    const text = chatInput.trim();
+    if (!text || isSending) return;
+
+    if (!settings.oauthToken || !settings.username) {
+      setSendError('Войдите через Twitch в настройках для отправки сообщений');
+      setTimeout(() => setSendError(''), 3500);
+      return;
+    }
+
+    const targetChan = activeSendChannel || joinedChannels[0];
+    if (!targetChan) {
+      setSendError('Сначала подключите канал в настройках');
+      setTimeout(() => setSendError(''), 3000);
+      return;
+    }
+
+    setIsSending(true);
+    setSendError('');
+    try {
+      await SendMessage(targetChan, text);
+      setMsgHistory((prev) => [text, ...prev.slice(0, 49)]);
+      setHistoryIndex(-1);
+      setChatInput('');
+      scrollToBottom();
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      setSendError(String(err));
+      setTimeout(() => setSendError(''), 4000);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'ArrowUp') {
+      if (msgHistory.length > 0 && historyIndex < msgHistory.length - 1) {
+        e.preventDefault();
+        const nextIdx = historyIndex + 1;
+        setHistoryIndex(nextIdx);
+        setChatInput(msgHistory[nextIdx]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      if (historyIndex > 0) {
+        e.preventDefault();
+        const nextIdx = historyIndex - 1;
+        setHistoryIndex(nextIdx);
+        setChatInput(msgHistory[nextIdx]);
+      } else if (historyIndex === 0) {
+        e.preventDefault();
+        setHistoryIndex(-1);
+        setChatInput('');
+      }
+    }
+  };
+
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  useEffect(() => {
+    autoScrollRef.current = autoScroll;
+  }, [autoScroll]);
 
   // Load initial settings, joined channels, & Twitch API global badges
   useEffect(() => {
@@ -140,34 +325,80 @@ export default function App() {
   const processTTSQueue = async () => {
     if (ttsPlayingRef.current) return;
     ttsPlayingRef.current = true;
+    setIsTTSActive(true);
+
     while (ttsQueueRef.current.length > 0) {
       const text = ttsQueueRef.current.shift();
       try {
         const currentSettings = settingsRef.current;
-        if (currentSettings.ttsEngine === 'local' && typeof window !== 'undefined' && window.speechSynthesis) {
+        const playbackRate = Math.min(Math.max(Number(currentSettings.ttsSpeed) || 1.0, 0.5), 2.5);
+
+        if (
+          currentSettings.ttsEngine === 'local' &&
+          typeof window !== 'undefined' &&
+          window.speechSynthesis
+        ) {
           await new Promise((resolve) => {
+            currentUtteranceResolveRef.current = resolve;
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.volume = currentSettings.ttsVolume !== undefined ? currentSettings.ttsVolume : 1.0;
+            utterance.rate = playbackRate;
+            utterance.volume =
+              currentSettings.ttsVolume !== undefined
+                ? currentSettings.ttsVolume
+                : 1.0;
             const voices = window.speechSynthesis.getVoices();
-            const voice = voices.find((v) => v.name === currentSettings.ttsVoiceLocal);
+            const voice = voices.find(
+              (v) => v.name === currentSettings.ttsVoiceLocal
+            );
             if (voice) {
               utterance.voice = voice;
             } else if (voices.length > 0) {
               utterance.voice = voices[0];
             }
-            utterance.onend = resolve;
-            utterance.onerror = resolve;
+            const onFinish = () => {
+              currentUtteranceResolveRef.current = null;
+              resolve();
+            };
+            utterance.onend = onFinish;
+            utterance.onerror = onFinish;
             window.speechSynthesis.speak(utterance);
           });
         } else {
-          const dataUri = await SpeakText(text, currentSettings.ttsVoice || 'shitova.us');
+          const dataUri = await SpeakText(
+            text,
+            currentSettings.ttsVoice || 'shitova.us'
+          );
           if (dataUri) {
             await new Promise((resolve) => {
               const audio = new Audio(dataUri);
-              audio.volume = currentSettings.ttsVolume !== undefined ? currentSettings.ttsVolume : 1.0;
-              audio.onended = resolve;
-              audio.onerror = resolve;
-              audio.play().catch(resolve);
+              currentAudioRef.current = audio;
+              currentUtteranceResolveRef.current = resolve;
+              audio.playbackRate = playbackRate;
+              audio.volume =
+                currentSettings.ttsVolume !== undefined
+                  ? currentSettings.ttsVolume
+                  : 1.0;
+
+              // Apply custom audio output device if set and supported
+              if (
+                currentSettings.ttsAudioDevice &&
+                typeof audio.setSinkId === 'function'
+              ) {
+                audio
+                  .setSinkId(currentSettings.ttsAudioDevice)
+                  .catch((err) => console.warn('[TTS] setSinkId error:', err));
+              }
+
+              const onFinish = () => {
+                if (currentAudioRef.current === audio) {
+                  currentAudioRef.current = null;
+                }
+                currentUtteranceResolveRef.current = null;
+                resolve();
+              };
+              audio.onended = onFinish;
+              audio.onerror = onFinish;
+              audio.play().catch(onFinish);
             });
           }
         }
@@ -175,10 +406,62 @@ export default function App() {
         console.error('[TTS] Error:', err);
       }
     }
+
     ttsPlayingRef.current = false;
+    setIsTTSActive(false);
   };
 
-  // Listen for Twitch chat messages and events
+  const handleSkipCurrentTTS = () => {
+    if (currentAudioRef.current) {
+      try {
+        currentAudioRef.current.pause();
+        currentAudioRef.current.currentTime = 0;
+      } catch (_) {}
+      currentAudioRef.current = null;
+    }
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    if (currentUtteranceResolveRef.current) {
+      currentUtteranceResolveRef.current();
+      currentUtteranceResolveRef.current = null;
+    }
+  };
+
+  const handleStopTTS = () => {
+    ttsQueueRef.current = [];
+    handleSkipCurrentTTS();
+    ttsPlayingRef.current = false;
+    setIsTTSActive(false);
+  };
+
+  // Keyboard shortcut listener for skipping current TTS
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const hotkey = (settings.ttsSkipHotkey || 'Escape').trim().toLowerCase();
+      let isMatch = false;
+
+      if (hotkey === 'escape' && e.key === 'Escape') {
+        isMatch = true;
+      } else if (hotkey === 'f8' && e.key === 'F8') {
+        isMatch = true;
+      } else if (hotkey === 'ctrl+shift+s') {
+        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') isMatch = true;
+      } else if (e.key.toLowerCase() === hotkey) {
+        isMatch = true;
+      }
+
+      if (isMatch && isTTSActive) {
+        e.preventDefault();
+        handleSkipCurrentTTS();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [settings.ttsSkipHotkey, isTTSActive]);
+
+  // Listen for realtime chat events from Go backend
   useEffect(() => {
     const unoffMsg = EventsOn('chat:message', (msg) => {
       const s = settingsRef.current;
@@ -186,27 +469,55 @@ export default function App() {
       const text = msg.message || '';
 
       const isIgnored = isUserIgnored(user, s.ignoredUsers);
-      const isCmd = !msg.isEvent && s.ignoreCommands && isCommandMessage(text, s.commandPrefixes);
-      const isEmoteOnly = !msg.isEvent && s.ignoreEmotesOnly && isEmoteOnlyMessage(text, emoteMap, msg.emoteMap);
+      const isCmd = s.ignoreCommands && isCommandMessage(text, s.commandPrefixes);
+      const isEmoteOnly =
+        s.ignoreEmotesOnly && isEmoteOnlyMessage(text, emoteMap, msg.emoteMap);
 
-      // Add to messages buffer
+      if (s.hideIgnoredFromChat && !msg.isEvent) {
+        if (isIgnored || isCmd || isEmoteOnly) return;
+      }
+
       setMessages((prev) => {
-        const next = [...prev, msg];
-        const max = s.maxMessages || 300;
-        if (next.length > max) return next.slice(next.length - max);
-        return next;
-      });
-
-      // Queue for TTS
-      const shouldSkipTTS = !s.ttsEnabled || isIgnored || isCmd || isEmoteOnly;
-      if (!shouldSkipTTS) {
-        let ttsText = '';
-        if (msg.isEvent) {
-          ttsText = msg.systemMsg || msg.message || '';
-        } else if (text) {
-          ttsText = s.ttsFilterEmotes ? stripEmotesForTTS(text, emoteMap, msg.emoteMap) : text;
+        // Prevent duplicate messages by ID
+        if (msg.id && prev.some((m) => m.id === msg.id)) {
+          return prev;
         }
 
+        // Deduplicate channel points rewards that may arrive from both IRC and EventSub
+        if (msg.eventType === 'reward') {
+          const rewardId = msg.eventData?.rewardId;
+          const userLower = (msg.user || msg.displayName || '').toLowerCase();
+          const isDup = prev.slice(-20).some((m) => {
+            if (m.eventType !== 'reward') return false;
+            if (m.id && msg.id && m.id === msg.id) return true;
+            if (
+              rewardId &&
+              m.eventData?.rewardId === rewardId &&
+              (m.user || m.displayName || '').toLowerCase() === userLower
+            ) {
+              return true;
+            }
+            return false;
+          });
+          if (isDup) return prev;
+        }
+
+        const updated = [...prev, msg];
+        if (updated.length > s.maxMessages) {
+          return updated.slice(updated.length - s.maxMessages);
+        }
+        return updated;
+      });
+
+      if (!autoScrollRef.current) {
+        setUnreadCount((c) => c + 1);
+      }
+
+      // Queue for TTS with detailed targeting and text cleaning
+      const eligible = isMessageEligibleForTTS(msg, s);
+      const shouldSkipTTS = !s.ttsEnabled || isIgnored || isCmd || isEmoteOnly || !eligible;
+      if (!shouldSkipTTS) {
+        const ttsText = formatTextForTTS(msg, s, emoteMap);
         if (ttsText) {
           ttsQueueRef.current.push(ttsText);
           processTTSQueue();
@@ -218,7 +529,8 @@ export default function App() {
       setSettings((prev) => ({
         ...prev,
         ...updatedSettings,
-        channelColors: updatedSettings.channelColors || prev.channelColors || {},
+        channelColors:
+          updatedSettings.channelColors || prev.channelColors || {},
       }));
     });
 
@@ -246,7 +558,7 @@ export default function App() {
       if (typeof unoffBadges === 'function') unoffBadges();
       if (typeof unoffEmotes === 'function') unoffEmotes();
     };
-  }, [settings.maxMessages]);
+  }, [settings.maxMessages, emoteMap]);
 
   useEffect(() => {
     if (autoScroll && messagesEndRef.current) {
@@ -259,6 +571,17 @@ export default function App() {
     const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 60;
     setAutoScroll(isAtBottom);
+    if (isAtBottom) {
+      setUnreadCount(0);
+    }
+  };
+
+  const scrollToBottom = () => {
+    setAutoScroll(true);
+    setUnreadCount(0);
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   const toggleMuteChannel = (channelName) => {
@@ -275,147 +598,103 @@ export default function App() {
     });
   };
 
+  const handleAddChannel = async (channelName) => {
+    try {
+      await JoinChannel(channelName);
+    } catch (err) {
+      console.error('Failed to join channel:', err);
+    }
+  };
+
   const openSettings = () => {
     setActiveView('settings');
-    if (typeof ResizeWindowForSettings === 'function') {
-      ResizeWindowForSettings(true);
-    }
   };
 
   const closeSettings = () => {
     setActiveView('chat');
-    if (typeof ResizeWindowForSettings === 'function') {
-      ResizeWindowForSettings(false);
-    }
   };
 
-  // Render Control Panel View when settings active
   if (activeView === 'settings') {
-    return <SettingsView isStandaloneWindow={true} onClose={closeSettings} />;
+    return <SettingsView onClose={closeSettings} />;
   }
 
-  // Get active icon fill color
-  const globalIconColor = getTwitchIconColor(settings.iconColor || 'teal');
-
-  // Filter messages and events
+  // Filter messages based on muted channels and ignored users/commands
   const visibleMessages = messages.filter((msg) => {
-    if (msg.channel && mutedChannels.has(msg.channel.toLowerCase())) return false;
+    if (msg.channel && mutedChannels.has(msg.channel.toLowerCase()))
+      return false;
     if (settings.hideIgnoredFromChat && !msg.isEvent) {
       const user = msg.displayName || msg.user || '';
       const text = msg.message || '';
       if (isUserIgnored(user, settings.ignoredUsers)) return false;
-      if (settings.ignoreCommands && isCommandMessage(text, settings.commandPrefixes)) return false;
-      if (settings.ignoreEmotesOnly && isEmoteOnlyMessage(text, emoteMap, msg.emoteMap)) return false;
+      if (
+        settings.ignoreCommands &&
+        isCommandMessage(text, settings.commandPrefixes)
+      )
+        return false;
+      if (
+        settings.ignoreEmotesOnly &&
+        isEmoteOnlyMessage(text, emoteMap, msg.emoteMap)
+      )
+        return false;
     }
     return true;
   });
 
   return (
-    <div
-      className="flex flex-col h-screen w-full font-mono bg-[#0c0d12] text-[#f1f3f7] select-none overflow-hidden"
-      style={{ fontSize: `${settings.fontSize || 14}px` }}
-    >
-      <CustomTitleBar title="ReChat — Twitch Chat Stream Monitor" />
+    <div className="flex flex-col h-screen w-full bg-[#181920] text-[#ECECF1] select-none overflow-hidden font-sans relative">
+      <CustomTitleBar
+        isSettingsMode={false}
+        onOpenSettings={openSettings}
+      />
 
-      {/* Header Bar */}
-      <header className="h-10 px-2.5 border-b border-white/[0.06] flex justify-between items-center bg-[#13151c] gap-2.5 shrink-0">
-        {/* Stream Source Status */}
-        <div className="flex items-center gap-1.5 font-sans font-semibold text-xs text-[#f1f3f7] pr-2.5 border-r border-white/[0.08] shrink-0 select-none">
-          <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse"></span>
-          <span className="font-mono text-[11px] text-[#8c93a4]">IRC:LIVE</span>
-        </div>
-
-        {/* Scrollable Joined Channels List */}
-        <div className="flex-1 flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 min-w-0">
-          {joinedChannels.length === 0 ? (
-            <span className="text-[11px] text-[#8c93a4] font-sans italic flex items-center gap-1.5 shrink-0">
-              <Radio className="w-3 h-3 text-[#4e5564] animate-pulse" />
-              <span>No channels connected — configure in settings</span>
-            </span>
-          ) : (
-            joinedChannels.map((ch) => {
-              const lower = ch.toLowerCase();
-              const isOwn = settings.username && lower === settings.username.toLowerCase();
-              const isMuted = mutedChannels.has(lower);
-              const chTheme = getChannelColor(ch, settings.channelColors, isOwn);
-              const iconFill = isMuted ? '#6b7280' : getTwitchIconColor(settings.iconColor, chTheme.accent);
-
-              return (
-                <button
-                  key={ch}
-                  type="button"
-                  onClick={() => toggleMuteChannel(ch)}
-                  title={isMuted ? `Click to show #${ch} chat` : `Click to hide #${ch} chat`}
-                  style={
-                    !isMuted
-                      ? {
-                          backgroundColor: chTheme.bg,
-                          borderColor: chTheme.border,
-                          color: chTheme.text,
-                        }
-                      : {}
-                  }
-                  className={`px-2 py-0.5 rounded border text-[11px] font-mono font-medium flex items-center gap-1.5 shrink-0 cursor-pointer transition-all ${
-                    isMuted
-                      ? 'bg-white/[0.02] border-white/[0.06] text-[#4e5564] opacity-50 hover:opacity-80 line-through'
-                      : isOwn
-                      ? 'border-emerald-500/40 text-emerald-300 hover:border-emerald-500/70'
-                      : 'hover:border-white/[0.2]'
-                  }`}
-                >
-                  {isMuted ? (
-                    <EyeOff className="w-2.5 h-2.5 text-[#4e5564]" />
-                  ) : (
-                    <TwitchIcon className="w-2.5 h-2.5" fill={iconFill} />
-                  )}
-                  <span>#{ch}</span>
-                  {isOwn && (
-                    <span className="text-[9px] px-1 py-0.2 bg-emerald-950/80 border border-emerald-800/60 rounded text-emerald-400 font-bold uppercase tracking-wider">
-                      host
-                    </span>
-                  )}
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        {/* Header Right Controls */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={openSettings}
-            title="Open Control Panel (Settings)"
-            className="p-1 bg-white/[0.04] border border-white/[0.08] text-[#8c93a4] hover:text-[#f1f3f7] hover:bg-white/[0.08] active:bg-white/[0.12] rounded transition-colors"
-          >
-            <Settings className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </header>
-
-      {/* Main Unified Message & Event Stream */}
+      {/* Main Stream Chat View */}
       <main
         ref={chatContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-2.5 space-y-1 bg-[#0c0d12] custom-scrollbar"
+        className="relative flex-1 overflow-y-auto px-1.5 py-1.5 space-y-0.5 bg-[#181920] custom-scrollbar"
       >
         {visibleMessages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-[#525866] font-sans text-xs gap-2 select-none py-8">
-            <div className="p-3 rounded-full bg-white/[0.02] border border-white/[0.05]">
-              <TwitchIcon className="w-6 h-6 opacity-30" fill={globalIconColor} />
+          <div className="h-full flex flex-col items-center justify-center text-[#8E92A4] font-sans text-xs gap-3 select-none py-12 px-6 text-center">
+            <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.04] shadow-sm">
+              <TwitchIcon
+                className="w-8 h-8 opacity-40 text-[#9146FF] fill-[#9146FF]"
+              />
             </div>
-            <span>
-              {joinedChannels.length === 0
-                ? 'No active channels. Press (⚙) to join a channel.'
-                : mutedChannels.size === joinedChannels.length
-                ? 'All connected channels are currently muted.'
-                : `Listening to ${joinedChannels.map((c) => '#' + c).join(', ')}...`}
-            </span>
+
+            <div className="space-y-1 max-w-xs">
+              <h3 className="text-xs font-semibold text-[#ECECF1]">
+                {joinedChannels.length === 0
+                  ? 'Нет подключенных каналов'
+                  : 'Ожидание сообщений...'}
+              </h3>
+              <p className="text-[11px] text-[#6C7082] leading-relaxed">
+                {joinedChannels.length === 0
+                  ? 'Перейдите в настройки, чтобы добавить Twitch-канал для мониторинга.'
+                  : `Слушаем ${joinedChannels.map((c) => '#' + c).join(', ')}`}
+              </p>
+            </div>
+
+            {joinedChannels.length === 0 && (
+              <button
+                type="button"
+                onClick={openSettings}
+                className="mt-1 px-3 py-1.5 bg-[#3B82F6] hover:bg-blue-600 text-white rounded-lg text-xs font-semibold shadow transition-all cursor-pointer"
+              >
+                Открыть настройки
+              </button>
+            )}
           </div>
         ) : (
           visibleMessages.map((msg, index) => {
-            // If message is a Twitch event (Sub, Raid, Cheer, Announcement, Mod, Reward, etc.)
-            if (msg.isEvent) {
+            const isSpecialEvent =
+              (msg.isEvent ||
+                msg.eventType === 'reward' ||
+                msg.eventType === 'highlighted' ||
+                Boolean(msg.eventData?.['custom-reward-id'])) &&
+              !msg.isFirstMsg &&
+              msg.eventType !== 'intro';
+
+            if (isSpecialEvent) {
               return (
                 <InlineEventMessage
                   key={msg.id || `evt-${index}`}
@@ -427,132 +706,138 @@ export default function App() {
               );
             }
 
-            // Normal chat message
-            const isOwn =
-              settings.username &&
-              msg.channel &&
-              msg.channel.toLowerCase() === settings.username.toLowerCase();
-            const chTheme = getChannelColor(msg.channel, settings.channelColors, isOwn);
-            const iconFill = getTwitchIconColor(settings.iconColor, chTheme.accent);
-            const isAccentLine = settings.channelBadgeMode === 'accent_line';
-
             return (
-              <div
+              <ChatMessage
                 key={msg.id || index}
-                style={isAccentLine && !isOwn ? { borderLeftColor: chTheme.accent, borderLeftWidth: '2px' } : {}}
-                className={`flex items-baseline flex-wrap leading-snug px-1.5 py-0.5 rounded hover:bg-white/[0.03] transition-colors gap-x-1.5 ${
-                  isAccentLine && !isOwn ? 'pl-2 bg-white/[0.01]' : ''
-                }`}
-              >
-                {/* Channel Badge */}
-                {msg.channel && (
-                  <>
-                    {settings.channelBadgeMode === 'icon_only' ? (
-                      <span
-                        title={`Channel: #${msg.channel}`}
-                        style={{
-                          backgroundColor: chTheme.bg,
-                          borderColor: chTheme.border,
-                        }}
-                        className={`px-1 py-0.5 border rounded text-[10px] font-mono flex items-center justify-center self-center cursor-pointer hover:opacity-90 transition-opacity ${
-                          isOwn ? 'border-emerald-500/40' : ''
-                        }`}
-                      >
-                        <TwitchIcon className="w-2.5 h-2.5" fill={iconFill} />
-                      </span>
-                    ) : settings.channelBadgeMode === 'icon_bg' ? (
-                      <span
-                        title={`Channel: #${msg.channel}`}
-                        style={{
-                          backgroundColor: chTheme.bg,
-                          borderColor: chTheme.border,
-                          color: chTheme.text,
-                        }}
-                        className={`px-1.5 py-0.2 border rounded text-[10px] font-mono font-medium flex items-center gap-1 self-center cursor-pointer ${
-                          isOwn ? 'border-emerald-500/40' : ''
-                        }`}
-                      >
-                        <TwitchIcon className="w-2 h-2" fill={iconFill} />
-                        <span>#{msg.channel}</span>
-                      </span>
-                    ) : settings.channelBadgeMode === 'accent_line' ? (
-                      <span style={{ color: chTheme.text }} className="text-[10px] font-mono font-semibold self-center opacity-80">
-                        #{msg.channel}
-                      </span>
-                    ) : (
-                      <span
-                        title={`Channel: #${msg.channel}`}
-                        style={{
-                          backgroundColor: chTheme.bg,
-                          borderColor: chTheme.border,
-                          color: chTheme.text,
-                        }}
-                        className={`px-1.5 py-0.2 border rounded text-[10px] font-mono font-medium self-center cursor-pointer ${
-                          isOwn ? 'border-emerald-500/40' : ''
-                        }`}
-                      >
-                        #{msg.channel}
-                      </span>
-                    )}
-                  </>
-                )}
-
-                {/* Timestamp */}
-                {settings.showTimestamps && msg.timestamp && (
-                  <span className="text-[#525866] text-[11px] font-mono select-none self-center">
-                    [{settings.timestampFormat === 'HH:MM' ? msg.timestamp.slice(0, 5) : msg.timestamp}]
-                  </span>
-                )}
-
-                {/* Badges */}
-                {settings.showBadges && msg.badges && (
-                  <TwitchBadge badgeTag={msg.badges} dynamicBadges={dynamicBadges} />
-                )}
-
-                {/* Username */}
-                <span
-                  className="font-bold text-xs font-sans truncate self-baseline"
-                  style={{ color: msg.color || '#10b981' }}
-                >
-                  {msg.displayName || msg.user || 'Anonymous'}:
-                </span>
-
-                {/* Message text with emotes */}
-                <span className="text-[#f1f3f7] font-sans break-words min-w-0">
-                  <EmoteText
-                    text={msg.message}
-                    emoteMap={emoteMap}
-                    twitchEmoteMap={msg.emoteMap}
-                  />
-                </span>
-              </div>
+                msg={msg}
+                settings={settings}
+                dynamicBadges={dynamicBadges}
+                emoteMap={emoteMap}
+              />
             );
           })
         )}
+
         <div ref={messagesEndRef} />
       </main>
 
-      {/* Footer Status Bar */}
-      <footer className="h-6 px-3 border-t border-white/[0.06] bg-[#12141a] flex items-center justify-between text-[11px] font-mono text-[#525866] shrink-0 select-none">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1">
-            <span className="text-[#8c93a4]">CHANNELS:</span>
-            <span className="text-[#f1f3f7]">{joinedChannels.length - mutedChannels.size}/{joinedChannels.length}</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="text-[#8c93a4]">MESSAGES:</span>
-            <span className="text-[#f1f3f7]">{messages.length}</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          {settings.ttsEnabled && (
-            <span className="text-emerald-400 flex items-center gap-1 text-[10px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              TTS ACTIVE
+      {/* Row right above input bar for banners & TTS indicator */}
+      <div className="relative z-10 px-2 flex items-center justify-between pointer-events-none">
+        {/* Floating Indicator for new messages when scrolled up */}
+        <NewMessagesBanner
+          unreadCount={unreadCount}
+          onClick={scrollToBottom}
+        />
+
+        {/* Floating TTS speaking indicator with Skip button */}
+        {isTTSActive && (
+          <div className="ml-auto pointer-events-auto flex items-center gap-2 px-2.5 py-1 mb-1 rounded-[6px] bg-[#242631]/95 backdrop-blur border border-white/[0.08] shadow-lg select-none text-xs animate-fade-in">
+            <div className="flex items-center gap-1.5 text-blue-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
+              <span className="text-[11px] font-semibold">TTS</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSkipCurrentTTS}
+              className="px-2 py-0.5 bg-rose-500/20 hover:bg-rose-500/30 active:bg-rose-500/40 text-rose-300 text-[10px] font-bold rounded border border-rose-500/30 transition-colors cursor-pointer flex items-center gap-1"
+              title={`Пропустить озвучку (${settings.ttsSkipHotkey || 'Esc'})`}
+            >
+              <span>Пропустить</span>
+              <kbd className="text-[9px] opacity-75 font-mono">[{settings.ttsSkipHotkey || 'Esc'}]</kbd>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Docked Chat Input Bar */}
+      <footer className="shrink-0 p-2 bg-[#181920] border-t border-white/[0.04]">
+        {sendError && (
+          <div className="text-[11px] text-rose-400 font-medium px-2 pb-1.5 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+            <span className="truncate">{sendError}</span>
+          </div>
+        )}
+
+        {settings.oauthToken && settings.username ? (
+          <form
+            onSubmit={handleSendMessage}
+            className="flex items-center gap-1.5 bg-[#242631] border border-white/[0.06] rounded-xl px-2.5 py-1.5 shadow-sm focus-within:border-[#3B82F6] transition-colors"
+          >
+            {/* Target channel selector / pill */}
+            {joinedChannels.length > 1 ? (
+              <div className="relative shrink-0">
+                <select
+                  value={activeSendChannel || joinedChannels[0]}
+                  onChange={(e) => setActiveSendChannel(e.target.value)}
+                  className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-[#ECECF1] text-[11px] font-semibold pl-2 pr-5 py-1 rounded-md border border-white/[0.06] outline-none cursor-pointer"
+                  title="Выберите канал для отправки сообщения"
+                >
+                  {joinedChannels.map((ch) => (
+                    <option key={ch} value={ch}>
+                      #{ch}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3 h-3 text-[#8E92A4] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            ) : (
+              <span
+                onClick={openSettings}
+                className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-[#8E92A4] hover:text-[#ECECF1] px-1 py-0.5 rounded cursor-pointer transition-colors select-none"
+                title="Нажмите для перехода в настройки каналов"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span>#{activeSendChannel || joinedChannels[0] || 'chat'}</span>
+              </span>
+            )}
+
+            {/* Message input field */}
+            <input
+              ref={chatInputRef}
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={handleInputKeyDown}
+              disabled={joinedChannels.length === 0 || isSending}
+              placeholder={
+                joinedChannels.length === 0
+                  ? 'Сначала подключите канал в настройках...'
+                  : `Сообщение в #${activeSendChannel || joinedChannels[0]}...`
+              }
+              className="flex-1 min-w-0 bg-transparent text-xs text-[#ECECF1] placeholder:text-[#6C7082] outline-none select-text disabled:opacity-50"
+            />
+
+            {/* Send button */}
+            <button
+              type="submit"
+              disabled={!chatInput.trim() || isSending || joinedChannels.length === 0}
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#3B82F6] hover:bg-blue-600 disabled:opacity-30 disabled:hover:bg-[#3B82F6] text-white transition-all cursor-pointer shrink-0 shadow-xs"
+              title="Отправить (Enter)"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </form>
+        ) : (
+          /* Not authenticated banner */
+          <button
+            type="button"
+            onClick={openSettings}
+            className="w-full flex items-center justify-between p-2 rounded-xl bg-[#242631] hover:bg-[#2C2E3C] border border-white/[0.06] text-xs transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-md bg-[#9146FF] flex items-center justify-center text-white shrink-0 shadow-xs">
+                <TwitchIcon className="w-3.5 h-3.5 fill-white text-white" />
+              </span>
+              <span className="text-[#8E92A4] group-hover:text-[#ECECF1] transition-colors text-left text-[11px]">
+                Войдите через Twitch, чтобы писать в чат
+              </span>
+            </div>
+            <span className="text-[11px] font-semibold text-[#3B82F6] flex items-center gap-1 shrink-0">
+              <span>Войти</span>
+              <LogIn className="w-3 h-3" />
             </span>
-          )}
-          <span>RC-01 // TWITCH IRC</span>
-        </div>
+          </button>
+        )}
       </footer>
     </div>
   );

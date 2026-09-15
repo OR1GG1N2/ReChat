@@ -1,54 +1,102 @@
-/* Hallmark · genre: atmospheric · theme: Terminal/Obsidian · pre-emit critique: P5 H5 E5 S5 R5 V5 */
 import React from 'react';
 import { WindowMinimise, WindowToggleMaximise, Quit } from '../../wailsjs/runtime/runtime';
-import TwitchIcon from './TwitchIcon';
-import { Minus, Square, X } from 'lucide-react';
+import { Settings, Minus, Square, X, ArrowLeft } from 'lucide-react';
 
-export default function CustomTitleBar({ title = 'ReChat — Twitch Chat Monitor' }) {
+export default function CustomTitleBar({
+  isSettingsMode = false,
+  settingsTitle = 'Appearance',
+  onOpenSettings,
+  onCloseSettings,
+  onBack,
+}) {
   return (
-    <div
-      className="h-7 bg-[#0c0d12] border-b border-white/[0.06] flex items-center justify-between px-2.5 font-sans text-xs text-[#8c93a4] select-none shrink-0 tracking-tight"
+    <header
+      className="h-8 bg-[#181920] border-b border-white/[0.04] flex items-center justify-between px-2.5 font-sans text-xs text-[#9E9EB2] select-none shrink-0 tracking-tight transition-colors"
       style={{ '--wails-draggable': 'drag' }}
     >
-      {/* App Branding & Status */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.06]">
-          <TwitchIcon className="w-3 h-3 fill-[#10b981] text-[#10b981]" />
-          <span className="font-mono text-[10px] font-semibold text-[#f1f3f7] uppercase tracking-wider">RC-01</span>
-        </div>
-        <span className="text-[11px] font-medium text-[#8c93a4] truncate">{title}</span>
+      {/* Left side / Title area: always draggable */}
+      <div
+        className="flex items-center gap-2 flex-1 min-w-0 h-full"
+        style={{ '--wails-draggable': 'drag' }}
+      >
+        {isSettingsMode ? (
+          <div className="flex items-center gap-2 h-full">
+            <button
+              type="button"
+              style={{ '--wails-draggable': 'no-drag' }}
+              onClick={onBack || onCloseSettings}
+              className="w-6 h-6 flex items-center justify-center rounded-md text-[#ECECF1] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors cursor-pointer"
+              title="Назад"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <span
+              className="text-sm font-semibold text-[#ECECF1] tracking-tight truncate select-none"
+              style={{ '--wails-draggable': 'drag' }}
+            >
+              {settingsTitle}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
+            <span className="font-semibold text-[11px] text-[#6C7082] tracking-wider uppercase">
+              ReChat
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Tactile Window Controls */}
+      {/* Right side: Settings button (in chat mode) / Close view (in settings mode) + Windows controls */}
       <div
-        className="flex items-center gap-0.5"
+        className="flex items-center gap-1 shrink-0"
         style={{ '--wails-draggable': 'no-drag' }}
       >
+        {isSettingsMode ? (
+          <button
+            type="button"
+            onClick={onCloseSettings}
+            className="w-6 h-6 flex items-center justify-center rounded-md text-[#9E9EB2] hover:text-[#ECECF1] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors cursor-pointer mr-1"
+            title="Закрыть настройки"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="w-6 h-6 flex items-center justify-center rounded-md text-[#9E9EB2] hover:text-[#ECECF1] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors cursor-pointer"
+            title="Настройки"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {/* Windows System Control Buttons */}
         <button
           type="button"
           onClick={WindowMinimise}
-          className="w-5 h-5 flex items-center justify-center rounded text-[#8c93a4] hover:text-[#f1f3f7] hover:bg-white/[0.06] active:bg-white/[0.1] transition-colors"
-          title="Minimize"
+          className="w-6 h-6 flex items-center justify-center rounded-md text-[#9E9EB2] hover:text-[#ECECF1] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors cursor-pointer"
+          title="Свернуть"
         >
-          <Minus className="w-2.5 h-2.5" />
+          <Minus className="w-3.5 h-3.5" />
         </button>
         <button
           type="button"
           onClick={WindowToggleMaximise}
-          className="w-5 h-5 flex items-center justify-center rounded text-[#8c93a4] hover:text-[#f1f3f7] hover:bg-white/[0.06] active:bg-white/[0.1] transition-colors"
-          title="Maximize / Restore"
+          className="w-6 h-6 flex items-center justify-center rounded-md text-[#9E9EB2] hover:text-[#ECECF1] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors cursor-pointer"
+          title="Развернуть / Восстановить"
         >
-          <Square className="w-2 h-2" />
+          <Square className="w-2.5 h-2.5" />
         </button>
         <button
           type="button"
           onClick={Quit}
-          className="w-5 h-5 flex items-center justify-center rounded text-[#8c93a4] hover:text-white hover:bg-rose-600/80 active:bg-rose-700 transition-colors"
-          title="Close Application"
+          className="w-6 h-6 flex items-center justify-center rounded-md text-[#9E9EB2] hover:text-white hover:bg-rose-600/90 active:bg-rose-700 transition-colors cursor-pointer"
+          title="Закрыть приложение"
         >
-          <X className="w-3 h-3" />
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
-    </div>
+    </header>
   );
 }

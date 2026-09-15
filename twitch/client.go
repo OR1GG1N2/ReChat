@@ -29,6 +29,7 @@ type ChatMessage struct {
 	EventType   string            `json:"eventType,omitempty"`   // "sub", "resub", "subgift", "raid", "cheer", "announcement", "timeout", "ban", "clearchat", "reward", "hypetrain", "shoutout", "notice", "intro"
 	SystemMsg   string            `json:"systemMsg,omitempty"`
 	EventData   map[string]string `json:"eventData,omitempty"`
+	IsFirstMsg  bool              `json:"isFirstMsg,omitempty"`
 }
 
 type Client struct {
@@ -38,12 +39,18 @@ type Client struct {
 	joinedChans map[string]bool
 	isConnected bool
 	stopChan    chan struct{}
+	onMessage   func(*ChatMessage)
 }
 
 func NewClient() *Client {
 	return &Client{
 		joinedChans: make(map[string]bool),
 	}
+}
+
+// SetMessageHandler sets a callback called for every chat message (including IRC and system events).
+func (c *Client) SetMessageHandler(fn func(*ChatMessage)) {
+	c.onMessage = fn
 }
 
 func (c *Client) SetContext(ctx context.Context) {
@@ -165,6 +172,60 @@ func (c *Client) LeaveChannel(channelName string) error {
 	return nil
 }
 
+// SendMessage sends a message to the specified Twitch channel via IRC PRIVMSG
+func (c *Client) SendMessage(channelName, message string) error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+
+	channel := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(channelName), "#"))
+	if channel == "" {
+		return fmt.Errorf("channel name cannot be empty")
+	}
+
+	trimmedMsg := strings.TrimSpace(message)
+	if trimmedMsg == "" {
+		return fmt.Errorf("message cannot be empty")
+	}
+
+	settings := config.LoadSettings()
+	if settings.OAuthToken == "" || settings.Username == "" {
+		return fmt.Errorf("требуется авторизация через Twitch для отправки сообщений")
+	}
+
+	if err := c.ensureConnectedUnlocked(); err != nil {
+		return err
+	}
+
+	if c.conn == nil {
+		return fmt.Errorf("not connected to Twitch IRC")
+	}
+
+	ircCmd := fmt.Sprintf("PRIVMSG #%s :%s", channel, trimmedMsg)
+	if err := c.conn.WriteMessage(websocket.TextMessage, []byte(ircCmd)); err != nil {
+		return fmt.Errorf("failed to send message: %w", err)
+	}
+
+	// Optimistically emit the sent message to local chat UI
+	now := time.Now().Format("15:04:05")
+	localMsg := ChatMessage{
+		ID:          fmt.Sprintf("local-%d", time.Now().UnixNano()),
+		Channel:     channel,
+		User:        settings.Username,
+		DisplayName: settings.Username,
+		Color:       "#3B82F6",
+		Message:     trimmedMsg,
+		Timestamp:   now,
+	}
+	if c.ctx != nil {
+		runtime.EventsEmit(c.ctx, "chat:message", localMsg)
+	}
+	if c.onMessage != nil {
+		c.onMessage(&localMsg)
+	}
+
+	return nil
+}
+
 func (c *Client) ReconnectWithAuth() error {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
@@ -249,26 +310,31 @@ func (c *Client) readLoop() {
 				msg := c.parseUserNotice(line)
 				if msg != nil && c.ctx != nil {
 					runtime.EventsEmit(c.ctx, "chat:message", msg)
+					if c.onMessage != nil { c.onMessage(msg) }
 				}
 			} else if strings.Contains(line, "CLEARCHAT") {
 				msg := c.parseClearChat(line)
 				if msg != nil && c.ctx != nil {
 					runtime.EventsEmit(c.ctx, "chat:message", msg)
+					if c.onMessage != nil { c.onMessage(msg) }
 				}
 			} else if strings.Contains(line, "CLEARMSG") {
 				msg := c.parseClearMsg(line)
 				if msg != nil && c.ctx != nil {
 					runtime.EventsEmit(c.ctx, "chat:message", msg)
+					if c.onMessage != nil { c.onMessage(msg) }
 				}
 			} else if strings.Contains(line, "NOTICE") && !strings.Contains(line, "USERNOTICE") {
 				msg := c.parseNotice(line)
 				if msg != nil && c.ctx != nil {
 					runtime.EventsEmit(c.ctx, "chat:message", msg)
+					if c.onMessage != nil { c.onMessage(msg) }
 				}
 			} else if strings.Contains(line, "PRIVMSG") {
 				msg := c.parsePrivMsg(line)
 				if msg != nil && c.ctx != nil {
 					runtime.EventsEmit(c.ctx, "chat:message", msg)
+					if c.onMessage != nil { c.onMessage(msg) }
 				}
 			}
 		}
@@ -611,6 +677,10 @@ func (c *Client) parsePrivMsg(raw string) *ChatMessage {
 					customRewardID = val
 				case "msg-id":
 					msgIDTag = val
+				case "first-msg":
+					if val == "1" {
+						msg.IsFirstMsg = true
+					}
 				}
 			}
 		}
@@ -650,15 +720,15 @@ func (c *Client) parsePrivMsg(raw string) *ChatMessage {
 		msg.IsEvent = true
 		msg.EventType = "reward"
 		msg.EventData["rewardId"] = customRewardID
-		msg.SystemMsg = fmt.Sprintf("%s redeemed Channel Points reward", msg.DisplayName)
+		msg.SystemMsg = fmt.Sprintf("Заказ за баллы канала от %s", msg.DisplayName)
 	} else if msgIDTag == "user-intro" {
 		msg.IsEvent = true
 		msg.EventType = "intro"
-		msg.SystemMsg = fmt.Sprintf("👋 Welcome %s to chat (First message)!", msg.DisplayName)
+		msg.SystemMsg = fmt.Sprintf("👋 Приветствуем %s в чате (Первое сообщение)!", msg.DisplayName)
 	} else if msgIDTag == "highlighted-message" {
 		msg.IsEvent = true
 		msg.EventType = "highlighted"
-		msg.SystemMsg = fmt.Sprintf("✨ %s highlighted their message", msg.DisplayName)
+		msg.SystemMsg = fmt.Sprintf("✨ Выделенное сообщение от %s", msg.DisplayName)
 	} else if msgIDTag == "gigantified-emote-message" {
 		msg.IsEvent = true
 		msg.EventType = "powerup"

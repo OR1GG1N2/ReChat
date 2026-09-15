@@ -10,7 +10,6 @@ import {
   Sparkles,
   Megaphone,
   ShieldAlert,
-  Award,
   Flame,
   UserCheck,
   Info,
@@ -18,12 +17,11 @@ import {
   Radio,
   Share2,
   TrendingUp,
-  HelpCircle,
   AlertTriangle,
   Star,
-  Shield,
   DollarSign,
-  Tv,
+  Coins,
+  Smile,
 } from 'lucide-react';
 
 export default function InlineEventMessage({
@@ -54,14 +52,16 @@ export default function InlineEventMessage({
   const chTheme = getChannelColor(channel, settings.channelColors, isOwn);
   const iconFill = getTwitchIconColor(settings.iconColor, chTheme.accent);
 
-  // Complete styling configuration for all Twitch EventSub & IRC events
+  // Unified Dark Stream Companion design configurations for all events
   let config = {
-    label: 'EVENT',
+    label: 'СОБЫТИЕ',
     icon: Info,
-    bg: 'bg-white/[0.04]',
-    border: 'border-white/[0.08]',
-    accent: '#8c93a4',
-    text: 'text-[#f1f3f7]',
+    bg: 'bg-gradient-to-r from-[#242631] via-[#20222d] to-[#1a1b24]',
+    border: 'border-[#2C2E3C]',
+    accent: '#6C7082',
+    badgeBg: 'bg-[#181920]/80',
+    badgeBorder: 'border-white/[0.12]',
+    badgeText: 'text-[#ECECF1]',
   };
 
   switch (eventType) {
@@ -71,16 +71,21 @@ export default function InlineEventMessage({
     case 'channel.subscribe':
     case 'channel.subscription.message':
       config = {
-        label: eventType.includes('resub') || eventType.includes('message') ? 'RESUB' : 'NEW SUB',
+        label:
+          eventType.includes('resub') || eventType.includes('message')
+            ? 'ПЕРЕПОДПИСКА'
+            : 'НОВАЯ ПОДПИСКА',
         icon: Crown,
-        bg: 'bg-purple-950/40',
-        border: 'border-purple-800/60',
-        accent: '#a855f7',
-        text: 'text-purple-300',
+        bg: 'bg-gradient-to-r from-[#281b36]/90 via-[#221f2e]/70 to-[#242631]/90',
+        border: 'border-purple-500/25',
+        accent: '#c084fc',
+        badgeBg: 'bg-purple-950/70',
+        badgeBorder: 'border-purple-500/40',
+        badgeText: 'text-purple-300',
       };
       break;
 
-    // 🎁 Monetization: Gift Subs & Mystery Gifts
+    // 🎁 Monetization: Gift Subs
     case 'subgift':
     case 'anonsubgift':
     case 'submysterygift':
@@ -88,26 +93,32 @@ export default function InlineEventMessage({
     case 'primepaidupgrade':
     case 'channel.subscription.gift':
       config = {
-        label: eventType.includes('mystery') ? 'MASS GIFT SUB' : 'GIFT SUB',
+        label: eventType.includes('mystery')
+          ? 'МАССОВАЯ ПОДПИСКА'
+          : 'ПОДАРОЧНАЯ ПОДПИСКА',
         icon: Gift,
-        bg: 'bg-pink-950/40',
-        border: 'border-pink-800/60',
-        accent: '#ec4899',
-        text: 'text-pink-300',
+        bg: 'bg-gradient-to-r from-[#31172a]/90 via-[#271d2b]/70 to-[#242631]/90',
+        border: 'border-pink-500/25',
+        accent: '#f472b6',
+        badgeBg: 'bg-pink-950/70',
+        badgeBorder: 'border-pink-500/40',
+        badgeText: 'text-pink-300',
       };
       break;
 
-    // 🚀 Community: Raids
+    // ⚡ Community: Raids
     case 'raid':
     case 'unraid':
     case 'channel.raid':
       config = {
-        label: 'RAID',
+        label: 'РЕЙД',
         icon: Zap,
-        bg: 'bg-red-950/40',
-        border: 'border-red-800/60',
-        accent: '#ef4444',
-        text: 'text-red-300',
+        bg: 'bg-gradient-to-r from-[#32171b]/90 via-[#291b22]/70 to-[#242631]/90',
+        border: 'border-red-500/25',
+        accent: '#f87171',
+        badgeBg: 'bg-red-950/70',
+        badgeBorder: 'border-red-500/40',
+        badgeText: 'text-red-300',
       };
       break;
 
@@ -117,12 +128,14 @@ export default function InlineEventMessage({
     case 'channel.cheer':
     case 'extension.bits_transaction.create':
       config = {
-        label: eventData.bits ? `${eventData.bits} BITS` : 'CHEER',
+        label: eventData.bits ? `${eventData.bits} BITS` : 'ДОНАТ BITS',
         icon: Sparkles,
-        bg: 'bg-amber-950/40',
-        border: 'border-amber-800/60',
-        accent: '#f59e0b',
-        text: 'text-amber-300',
+        bg: 'bg-gradient-to-r from-[#2d2212]/90 via-[#262020]/70 to-[#242631]/90',
+        border: 'border-amber-500/25',
+        accent: '#fbbf24',
+        badgeBg: 'bg-amber-950/70',
+        badgeBorder: 'border-amber-500/40',
+        badgeText: 'text-amber-300',
       };
       break;
 
@@ -130,28 +143,60 @@ export default function InlineEventMessage({
     case 'announcement':
     case 'channel.chat.notification':
       config = {
-        label: 'ANNOUNCEMENT',
+        label: 'ОБЪЯВЛЕНИЕ',
         icon: Megaphone,
-        bg: 'bg-cyan-950/40',
-        border: 'border-cyan-800/60',
-        accent: '#06b6d4',
-        text: 'text-cyan-300',
+        bg: 'bg-gradient-to-r from-[#11272c]/90 via-[#182329]/70 to-[#242631]/90',
+        border: 'border-cyan-500/25',
+        accent: '#22d3ee',
+        badgeBg: 'bg-cyan-950/70',
+        badgeBorder: 'border-cyan-500/40',
+        badgeText: 'text-cyan-300',
       };
       break;
 
-    // 🏆 Channel Points & Power-ups
+    // 🪙 Channel Points: Rewards & Redemptions
     case 'reward':
-    case 'powerup':
-    case 'highlighted':
     case 'channel.channel_points_custom_reward_redemption.add':
+      config = {
+        label: 'ЗАКАЗ ЗА БАЛЛЫ',
+        icon: Coins,
+        bg: 'bg-gradient-to-r from-[#122822]/90 via-[#1b252a]/70 to-[#242631]/90',
+        border: 'border-emerald-500/30',
+        accent: '#10b981',
+        badgeBg: 'bg-emerald-950/80',
+        badgeBorder: 'border-emerald-500/45',
+        badgeText: 'text-emerald-300',
+        isReward: true,
+      };
+      break;
+
+    // ✨ Highlighted Message
+    case 'highlighted':
+      config = {
+        label: 'ВЫДЕЛЕННОЕ СООБЩЕНИЕ',
+        icon: Sparkles,
+        bg: 'bg-gradient-to-r from-[#251b32]/90 via-[#221f2d]/70 to-[#242631]/90',
+        border: 'border-purple-500/30',
+        accent: '#a855f7',
+        badgeBg: 'bg-purple-950/80',
+        badgeBorder: 'border-purple-500/45',
+        badgeText: 'text-purple-300',
+        isHighlighted: true,
+      };
+      break;
+
+    // ⚡ Power-ups
+    case 'powerup':
     case 'channel.custom_power_up_redemption.add':
       config = {
-        label: eventType === 'reward' ? 'CHANNEL POINTS' : eventType === 'powerup' ? 'POWER-UP' : 'HIGHLIGHT',
-        icon: Award,
-        bg: 'bg-emerald-950/40',
-        border: 'border-emerald-800/60',
-        accent: '#10b981',
-        text: 'text-emerald-300',
+        label: 'POWER-UP',
+        icon: Zap,
+        bg: 'bg-gradient-to-r from-[#11272c]/90 via-[#182329]/70 to-[#242631]/90',
+        border: 'border-cyan-500/25',
+        accent: '#06b6d4',
+        badgeBg: 'bg-cyan-950/70',
+        badgeBorder: 'border-cyan-500/40',
+        badgeText: 'text-cyan-300',
       };
       break;
 
@@ -163,16 +208,18 @@ export default function InlineEventMessage({
     case 'channel.hype_train.progress':
     case 'channel.hype_train.end':
       config = {
-        label: 'HYPE TRAIN',
+        label: 'ХАЙП-ТРЕЙН',
         icon: Flame,
-        bg: 'bg-orange-950/40',
-        border: 'border-orange-800/60',
-        accent: '#f97316',
-        text: 'text-orange-300',
+        bg: 'bg-gradient-to-r from-[#301e12]/90 via-[#272120]/70 to-[#242631]/90',
+        border: 'border-orange-500/25',
+        accent: '#fb923c',
+        badgeBg: 'bg-orange-950/70',
+        badgeBorder: 'border-orange-500/40',
+        badgeText: 'text-orange-300',
       };
       break;
 
-    // 🔮 Community: Predictions & Polls
+    // 📊 Community: Predictions & Polls
     case 'poll':
     case 'prediction':
     case 'channel.poll.begin':
@@ -181,12 +228,14 @@ export default function InlineEventMessage({
     case 'channel.prediction.end':
     case 'channel.prediction.lock':
       config = {
-        label: eventType.includes('prediction') ? 'PREDICTION' : 'POLL',
+        label: eventType.includes('prediction') ? 'ПРОГНОЗ' : 'ОПРОС',
         icon: TrendingUp,
-        bg: 'bg-violet-950/40',
-        border: 'border-violet-800/60',
-        accent: '#8b5cf6',
-        text: 'text-violet-300',
+        bg: 'bg-gradient-to-r from-[#1b1c36]/90 via-[#1f202c]/70 to-[#242631]/90',
+        border: 'border-indigo-500/25',
+        accent: '#818cf8',
+        badgeBg: 'bg-indigo-950/70',
+        badgeBorder: 'border-indigo-500/40',
+        badgeText: 'text-indigo-300',
       };
       break;
 
@@ -195,12 +244,14 @@ export default function InlineEventMessage({
     case 'channel.shoutout.create':
     case 'channel.shoutout.receive':
       config = {
-        label: 'SHOUTOUT',
+        label: 'ШАУТАУТ',
         icon: Share2,
-        bg: 'bg-teal-950/40',
-        border: 'border-teal-800/60',
-        accent: '#14b8a6',
-        text: 'text-teal-300',
+        bg: 'bg-gradient-to-r from-[#102927]/90 via-[#192527]/70 to-[#242631]/90',
+        border: 'border-teal-500/25',
+        accent: '#2dd4bf',
+        badgeBg: 'bg-teal-950/70',
+        badgeBorder: 'border-teal-500/40',
+        badgeText: 'text-teal-300',
       };
       break;
 
@@ -215,12 +266,19 @@ export default function InlineEventMessage({
     case 'channel.chat.clear':
     case 'channel.chat.clear_user_messages':
       config = {
-        label: eventType === 'timeout' ? 'TIMEOUT' : eventType === 'ban' ? 'BAN' : 'MODERATION',
+        label:
+          eventType === 'timeout'
+            ? 'ТАЙМАУТ'
+            : eventType === 'ban'
+            ? 'БАН'
+            : 'ОЧИСТКА ЧАТА',
         icon: ShieldAlert,
-        bg: 'bg-rose-950/40',
-        border: 'border-rose-800/60',
+        bg: 'bg-gradient-to-r from-[#33151b]/90 via-[#291a20]/70 to-[#242631]/90',
+        border: 'border-rose-500/25',
         accent: '#f43f5e',
-        text: 'text-rose-300',
+        badgeBg: 'bg-rose-950/70',
+        badgeBorder: 'border-rose-500/40',
+        badgeText: 'text-rose-300',
       };
       break;
 
@@ -230,12 +288,14 @@ export default function InlineEventMessage({
     case 'channel.vip.add':
     case 'channel.vip.remove':
       config = {
-        label: eventType.includes('moderator') ? 'MODERATOR' : 'VIP STATUS',
+        label: eventType.includes('moderator') ? 'МОДЕРАТОР' : 'VIP СТАТУС',
         icon: Star,
-        bg: 'bg-lime-950/40',
-        border: 'border-lime-800/60',
-        accent: '#84cc16',
-        text: 'text-lime-300',
+        bg: 'bg-gradient-to-r from-[#1d2915]/90 via-[#1f2520]/70 to-[#242631]/90',
+        border: 'border-lime-500/25',
+        accent: '#a3e635',
+        badgeBg: 'bg-lime-950/70',
+        badgeBorder: 'border-lime-500/40',
+        badgeText: 'text-lime-300',
       };
       break;
 
@@ -243,12 +303,14 @@ export default function InlineEventMessage({
     case 'follow':
     case 'channel.follow':
       config = {
-        label: 'NEW FOLLOWER',
+        label: 'НОВЫЙ ФОЛЛОВЕР',
         icon: Heart,
-        bg: 'bg-emerald-950/40',
-        border: 'border-emerald-800/60',
-        accent: '#22c55e',
-        text: 'text-emerald-300',
+        bg: 'bg-gradient-to-r from-[#14291e]/90 via-[#1a2525]/70 to-[#242631]/90',
+        border: 'border-emerald-500/25',
+        accent: '#4ade80',
+        badgeBg: 'bg-emerald-950/70',
+        badgeBorder: 'border-emerald-500/40',
+        badgeText: 'text-emerald-300',
       };
       break;
 
@@ -256,12 +318,20 @@ export default function InlineEventMessage({
     case 'stream.online':
     case 'stream.offline':
       config = {
-        label: eventType.includes('online') ? 'STREAM LIVE' : 'STREAM OFFLINE',
+        label: eventType.includes('online') ? 'СТРИМ ОНЛАЙН' : 'СТРИМ ОФФЛАЙН',
         icon: Radio,
-        bg: eventType.includes('online') ? 'bg-red-950/40' : 'bg-zinc-900/60',
-        border: eventType.includes('online') ? 'border-red-800/60' : 'border-zinc-800/60',
-        accent: eventType.includes('online') ? '#ef4444' : '#71717a',
-        text: eventType.includes('online') ? 'text-red-300' : 'text-zinc-400',
+        bg: eventType.includes('online')
+          ? 'bg-gradient-to-r from-[#32171b]/90 via-[#291b22]/70 to-[#242631]/90'
+          : 'bg-[#242631]/80',
+        border: eventType.includes('online')
+          ? 'border-red-500/30'
+          : 'border-[#2C2E3C]',
+        accent: eventType.includes('online') ? '#ef4444' : '#6C7082',
+        badgeBg: eventType.includes('online') ? 'bg-red-950/70' : 'bg-[#181920]/80',
+        badgeBorder: eventType.includes('online')
+          ? 'border-red-500/40'
+          : 'border-white/[0.12]',
+        badgeText: eventType.includes('online') ? 'text-red-300' : 'text-[#6C7082]',
       };
       break;
 
@@ -269,24 +339,28 @@ export default function InlineEventMessage({
     case 'charitydonation':
     case 'channel.charity_campaign.donate':
       config = {
-        label: 'CHARITY DONATION',
+        label: 'БЛАГОТВОРИТЕЛЬНОСТЬ',
         icon: DollarSign,
-        bg: 'bg-yellow-950/40',
-        border: 'border-yellow-800/60',
-        accent: '#eab308',
-        text: 'text-yellow-300',
+        bg: 'bg-gradient-to-r from-[#2b2413]/90 via-[#252220]/70 to-[#242631]/90',
+        border: 'border-yellow-500/25',
+        accent: '#facc15',
+        badgeBg: 'bg-yellow-950/70',
+        badgeBorder: 'border-yellow-500/40',
+        badgeText: 'text-yellow-300',
       };
       break;
 
     // 👋 First Message / User Intro
     case 'intro':
       config = {
-        label: 'FIRST MESSAGE',
+        label: 'ПЕРВОЕ СООБЩЕНИЕ',
         icon: UserCheck,
-        bg: 'bg-indigo-950/40',
-        border: 'border-indigo-800/60',
-        accent: '#6366f1',
-        text: 'text-indigo-300',
+        bg: 'bg-gradient-to-r from-[#281934]/95 via-[#231b2c]/80 to-[#242631]/90',
+        border: 'border-[#D946EF]/30',
+        accent: '#d946ef',
+        badgeBg: 'bg-[#281934]',
+        badgeBorder: 'border-[#D946EF]/50',
+        badgeText: 'text-pink-300',
       };
       break;
 
@@ -294,12 +368,14 @@ export default function InlineEventMessage({
     case 'channel.warning.acknowledge':
     case 'channel.suspicious_user.message':
       config = {
-        label: 'CHANNEL WARNING',
+        label: 'ПРЕДУПРЕЖДЕНИЕ',
         icon: AlertTriangle,
-        bg: 'bg-amber-950/40',
-        border: 'border-amber-800/60',
-        accent: '#d97706',
-        text: 'text-amber-300',
+        bg: 'bg-gradient-to-r from-[#2e1f14]/90 via-[#262020]/70 to-[#242631]/90',
+        border: 'border-amber-500/25',
+        accent: '#f59e0b',
+        badgeBg: 'bg-amber-950/70',
+        badgeBorder: 'border-amber-500/40',
+        badgeText: 'text-amber-300',
       };
       break;
 
@@ -309,16 +385,25 @@ export default function InlineEventMessage({
 
   const IconComp = config.icon;
 
+  // Reward cost and title extraction
+  const rewardCost = eventData?.rewardCost;
+  const rewardTitle = eventData?.rewardTitle;
+
   return (
     <div
-      className={`my-1 p-2 rounded-md border ${config.bg} ${config.border} transition-colors select-text`}
-      style={{ borderLeftColor: config.accent, borderLeftWidth: '3px' }}
+      className={`my-1.5 p-3 rounded-lg border ${config.border} ${config.bg} shadow-sm transition-all select-text`}
+      style={{ borderLeftColor: config.accent, borderLeftWidth: '3.5px' }}
     >
       {/* Event Header Banner */}
-      <div className="flex items-center gap-1.5 flex-wrap text-xs">
+      <div className="flex items-center gap-2 flex-wrap text-xs">
+        {/* Platform Twitch Badge — consistent with standard chat messages */}
+        <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[4px] bg-[#9146FF] shadow-xs select-none shrink-0">
+          <TwitchIcon className="w-2.5 h-2.5 text-white fill-white" />
+        </span>
+
         {/* Timestamp */}
         {settings.showTimestamps && timestamp && (
-          <span className="text-[10px] font-mono text-[#525866] select-none">
+          <span className="text-[11px] font-mono text-[#6C7082] select-none tabular-nums">
             [{settings.timestampFormat === 'HH:MM' ? timestamp.slice(0, 5) : timestamp}]
           </span>
         )}
@@ -331,22 +416,21 @@ export default function InlineEventMessage({
               borderColor: chTheme.border,
               color: chTheme.text,
             }}
-            className="px-1.5 py-0.2 border rounded text-[10px] font-mono font-medium flex items-center gap-1 shrink-0"
+            className="px-1.5 py-0.5 border rounded text-[10px] font-mono font-medium flex items-center gap-1 shrink-0"
           >
-            <TwitchIcon className="w-2 h-2" fill={iconFill} />
             <span>#{channel}</span>
           </span>
         )}
 
         {/* Event Type Badge */}
         <span
-          className={`px-1.5 py-0.2 rounded border text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1 shrink-0 ${config.text} ${config.border} bg-[#0c0d12]/70`}
+          className={`px-2 py-0.5 rounded-full border text-[10px] font-mono font-bold tracking-wide flex items-center gap-1 shrink-0 ${config.badgeBg} ${config.badgeBorder} ${config.badgeText}`}
         >
           <IconComp className="w-3 h-3" />
           <span>{config.label}</span>
         </span>
 
-        {/* Badges if present */}
+        {/* User Badges */}
         {settings.showBadges && badges && (
           <TwitchBadge badgeTag={badges} dynamicBadges={dynamicBadges} />
         )}
@@ -355,28 +439,66 @@ export default function InlineEventMessage({
         {displayName && (
           <span
             className="font-bold text-xs font-sans truncate"
-            style={{ color: color || '#f1f3f7' }}
+            style={{ color: color || '#ECECF1' }}
           >
             @{displayName}
           </span>
         )}
       </div>
 
-      {/* System Event Summary Line */}
-      {systemMsg && (
-        <div className="text-xs text-[#f1f3f7] font-sans font-medium mt-1 leading-relaxed">
-          {systemMsg}
+      {/* Specific Channel Points Reward details pill if available */}
+      {config.isReward && (rewardCost || rewardTitle) && (
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+          {rewardCost && (
+            <span className="text-[11px] font-mono text-emerald-300 font-semibold bg-emerald-950/70 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
+              <Coins className="w-3 h-3 text-emerald-400" />
+              <span>{rewardCost} баллов</span>
+            </span>
+          )}
+          {rewardTitle && (
+            <span className="text-xs text-emerald-100 font-medium font-sans">
+              «{rewardTitle}»
+            </span>
+          )}
         </div>
       )}
 
-      {/* User Custom / Attached Message */}
+      {/* System Event Summary Line */}
+      {(systemMsg || (!message && config.isReward)) && (
+        <div className="text-xs text-[#ECECF1] font-sans font-medium mt-1.5 leading-relaxed flex items-center gap-1.5">
+          <span>
+            {systemMsg ||
+              (config.isReward
+                ? `Пользователь @${displayName || user} использовал баллы канала`
+                : '')}
+          </span>
+        </div>
+      )}
+
+      {/* Attached User Message (e.g. Channel Points custom order prompt or resub message) */}
       {message && (
-        <div className="text-xs text-[#d1d5db] font-mono bg-[#0c0d12]/80 p-2 rounded border border-white/[0.04] mt-1.5 leading-snug">
-          <EmoteText
-            text={message}
-            emoteMap={emoteMap}
-            twitchEmoteMap={msg.emoteMap}
-          />
+        <div
+          className={`mt-2 p-2.5 rounded-md ${
+            config.isReward
+              ? 'bg-[#0e1b17]/95 border border-emerald-500/25 text-[#ECFDF5]'
+              : config.isHighlighted
+              ? 'bg-[#181324]/95 border border-purple-500/25 text-[#F3E8FF]'
+              : 'bg-[#181920]/95 border border-white/[0.08] text-[#ECECF1]'
+          } font-sans leading-relaxed shadow-inner break-words`}
+        >
+          {config.isReward && (
+            <div className="text-[10px] font-mono text-emerald-400/80 uppercase tracking-wider mb-1 flex items-center gap-1 font-semibold select-none">
+              <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+              <span>Текст заказа:</span>
+            </div>
+          )}
+          <div className={config.isReward || config.isHighlighted ? 'text-sm font-medium' : 'text-xs'}>
+            <EmoteText
+              text={message}
+              emoteMap={emoteMap}
+              twitchEmoteMap={msg.emoteMap}
+            />
+          </div>
         </div>
       )}
     </div>

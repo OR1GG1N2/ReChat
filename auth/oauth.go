@@ -103,7 +103,7 @@ func (s *OAuthServer) Start() error {
 		}
 
 		// Validate token with Twitch Helix API
-		username, err := s.fetchTwitchUser(body.Token)
+		user, err := s.fetchTwitchUser(body.Token)
 		if err != nil {
 			log.Printf("Failed to fetch Twitch user: %v", err)
 			http.Error(w, "Failed to validate user", http.StatusInternalServerError)
@@ -113,12 +113,13 @@ func (s *OAuthServer) Start() error {
 		// Save to SQLite
 		settings := config.LoadSettings()
 		settings.OAuthToken = body.Token
-		settings.Username = username
+		settings.Username = user.Login
+		settings.UserID = user.ID
 		_ = config.SaveSettings(settings)
 
 		// Trigger onSuccess callback (e.g. auto-join user's own channel)
 		if s.onSuccess != nil {
-			s.onSuccess(username)
+			s.onSuccess(user.Login)
 		}
 
 		// Emit event to Wails frontend
@@ -127,7 +128,7 @@ func (s *OAuthServer) Start() error {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "username": username})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "username": user.Login})
 
 		// Gracefully shutdown server in background
 		go func() {
@@ -150,10 +151,10 @@ func (s *OAuthServer) Start() error {
 	return nil
 }
 
-func (s *OAuthServer) fetchTwitchUser(token string) (string, error) {
+func (s *OAuthServer) fetchTwitchUser(token string) (*TwitchUser, error) {
 	req, err := http.NewRequest("GET", config.TwitchHelixUsersURL, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Client-Id", s.clientID)
@@ -161,24 +162,24 @@ func (s *OAuthServer) fetchTwitchUser(token string) (string, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Twitch API returned status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("Twitch API returned status: %d", resp.StatusCode)
 	}
 
 	var userResp TwitchUserResponse
 	if err := json.NewDecoder(resp.Body).Decode(&userResp); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if len(userResp.Data) == 0 {
-		return "", fmt.Errorf("no user data returned from Twitch API")
+		return nil, fmt.Errorf("no user data returned from Twitch API")
 	}
 
-	return userResp.Data[0].Login, nil
+	return &userResp.Data[0], nil
 }
 
 func (s *OAuthServer) Stop() {

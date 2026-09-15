@@ -11,6 +11,7 @@ export namespace config {
 	    maxMessages: number;
 	    oauthToken: string;
 	    username: string;
+	    userId: string;
 	    clientId: string;
 	    joinedChannels: string[];
 	    channelColors: Record<string, string>;
@@ -19,12 +20,31 @@ export namespace config {
 	    ttsEngine: string;
 	    ttsVoice: string;
 	    ttsVoiceLocal: string;
+	    ttsSpeed: number;
+	    ttsAudioDevice: string;
+	    ttsSkipHotkey: string;
+	    ttsAllMessages: boolean;
+	    ttsRepliesOnly: boolean;
+	    ttsHighlightedOnly: boolean;
+	    ttsSubscribersOnly: boolean;
+	    ttsVipOnly: boolean;
+	    ttsModOnly: boolean;
+	    ttsIncludeUsername: boolean;
+	    ttsIncludeLinks: boolean;
+	    ttsIncludeEmotes: boolean;
+	    ttsIncludeEmoji: boolean;
+	    ttsIncludeMentions: boolean;
+	    ttsRemoveWords: string;
 	    ignoreCommands: boolean;
 	    commandPrefixes: string;
 	    ignoreEmotesOnly: boolean;
 	    ttsFilterEmotes: boolean;
 	    ignoredUsers: string[];
 	    hideIgnoredFromChat: boolean;
+	    alwaysOnTop: boolean;
+	    fontFamily: string;
+	    messageSpacing: string;
+	    textAlign: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSettings(source);
@@ -42,6 +62,7 @@ export namespace config {
 	        this.maxMessages = source["maxMessages"];
 	        this.oauthToken = source["oauthToken"];
 	        this.username = source["username"];
+	        this.userId = source["userId"];
 	        this.clientId = source["clientId"];
 	        this.joinedChannels = source["joinedChannels"];
 	        this.channelColors = source["channelColors"];
@@ -50,12 +71,31 @@ export namespace config {
 	        this.ttsEngine = source["ttsEngine"];
 	        this.ttsVoice = source["ttsVoice"];
 	        this.ttsVoiceLocal = source["ttsVoiceLocal"];
+	        this.ttsSpeed = source["ttsSpeed"];
+	        this.ttsAudioDevice = source["ttsAudioDevice"];
+	        this.ttsSkipHotkey = source["ttsSkipHotkey"];
+	        this.ttsAllMessages = source["ttsAllMessages"];
+	        this.ttsRepliesOnly = source["ttsRepliesOnly"];
+	        this.ttsHighlightedOnly = source["ttsHighlightedOnly"];
+	        this.ttsSubscribersOnly = source["ttsSubscribersOnly"];
+	        this.ttsVipOnly = source["ttsVipOnly"];
+	        this.ttsModOnly = source["ttsModOnly"];
+	        this.ttsIncludeUsername = source["ttsIncludeUsername"];
+	        this.ttsIncludeLinks = source["ttsIncludeLinks"];
+	        this.ttsIncludeEmotes = source["ttsIncludeEmotes"];
+	        this.ttsIncludeEmoji = source["ttsIncludeEmoji"];
+	        this.ttsIncludeMentions = source["ttsIncludeMentions"];
+	        this.ttsRemoveWords = source["ttsRemoveWords"];
 	        this.ignoreCommands = source["ignoreCommands"];
 	        this.commandPrefixes = source["commandPrefixes"];
 	        this.ignoreEmotesOnly = source["ignoreEmotesOnly"];
 	        this.ttsFilterEmotes = source["ttsFilterEmotes"];
 	        this.ignoredUsers = source["ignoredUsers"];
 	        this.hideIgnoredFromChat = source["hideIgnoredFromChat"];
+	        this.alwaysOnTop = source["alwaysOnTop"];
+	        this.fontFamily = source["fontFamily"];
+	        this.messageSpacing = source["messageSpacing"];
+	        this.textAlign = source["textAlign"];
 	    }
 	}
 

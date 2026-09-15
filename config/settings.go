@@ -22,6 +22,7 @@ type AppSettings struct {
 	MaxMessages         int               `json:"maxMessages"`         // 100 - 1000
 	OAuthToken          string            `json:"oauthToken"`          // oauth token
 	Username            string            `json:"username"`            // authenticated user
+	UserID              string            `json:"userId"`              // authenticated user twitch id
 	ClientID            string            `json:"clientId"`            // twitch client id
 	JoinedChannels      []string          `json:"joinedChannels"`      // list of joined channels
 	ChannelColors       map[string]string `json:"channelColors"`       // channel -> custom hex/hsl background color
@@ -30,12 +31,31 @@ type AppSettings struct {
 	TTSEngine           string            `json:"ttsEngine"`           // "yandex" or "local"
 	TTSVoice            string            `json:"ttsVoice"`            // selected Yandex TTS voice
 	TTSVoiceLocal       string            `json:"ttsVoiceLocal"`       // selected Local OS voice name
+	TTSSpeed            float64           `json:"ttsSpeed"`            // 0.5 to 2.0 (default 1.0)
+	TTSAudioDevice      string            `json:"ttsAudioDevice"`      // output audio device ID
+	TTSSkipHotkey       string            `json:"ttsSkipHotkey"`       // hotkey to skip current TTS (e.g. "Escape")
+	TTSAllMessages      bool              `json:"ttsAllMessages"`      // speak all chat messages
+	TTSRepliesOnly      bool              `json:"ttsRepliesOnly"`      // speak messages with replies
+	TTSHighlightedOnly  bool              `json:"ttsHighlightedOnly"`  // speak highlighted messages
+	TTSSubscribersOnly  bool              `json:"ttsSubscribersOnly"`  // speak subscriber messages
+	TTSVipOnly          bool              `json:"ttsVipOnly"`          // speak VIP messages
+	TTSModOnly          bool              `json:"ttsModOnly"`          // speak moderator messages
+	TTSIncludeUsername  bool              `json:"ttsIncludeUsername"`  // speak author name
+	TTSIncludeLinks     bool              `json:"ttsIncludeLinks"`     // speak URLs
+	TTSIncludeEmotes    bool              `json:"ttsIncludeEmotes"`    // speak emotes
+	TTSIncludeEmoji     bool              `json:"ttsIncludeEmoji"`     // speak unicode emoji
+	TTSIncludeMentions  bool              `json:"ttsIncludeMentions"`  // speak @mentions
+	TTSRemoveWords      string            `json:"ttsRemoveWords"`      // words/symbols to remove from speech
 	IgnoreCommands      bool              `json:"ignoreCommands"`      // ignore messages starting with command symbols
 	CommandPrefixes     string            `json:"commandPrefixes"`     // comma separated command symbols, e.g. "!,/,.,$,?"
 	IgnoreEmotesOnly    bool              `json:"ignoreEmotesOnly"`    // ignore messages containing only emotes
 	TTSFilterEmotes     bool              `json:"ttsFilterEmotes"`     // strip emotes from TTS speech
 	IgnoredUsers        []string          `json:"ignoredUsers"`        // list of ignored usernames (bots, users)
 	HideIgnoredFromChat bool              `json:"hideIgnoredFromChat"` // hide ignored messages from chat UI as well as TTS
+	AlwaysOnTop         bool              `json:"alwaysOnTop"`         // show chat on top of all windows
+	FontFamily          string            `json:"fontFamily"`          // "Lato", "Inter", "Geist", "Roboto", "JetBrains Mono"
+	MessageSpacing      string            `json:"messageSpacing"`      // "compact", "default", "relaxed"
+	TextAlign           string            `json:"textAlign"`           // "left", "center", "right"
 }
 
 func DefaultSettings() AppSettings {
@@ -58,12 +78,31 @@ func DefaultSettings() AppSettings {
 		TTSEngine:           "yandex",
 		TTSVoice:            "shitova.us",
 		TTSVoiceLocal:       "",
+		TTSSpeed:            1.0,
+		TTSAudioDevice:      "",
+		TTSSkipHotkey:       "Escape",
+		TTSAllMessages:      true,
+		TTSRepliesOnly:      false,
+		TTSHighlightedOnly:  false,
+		TTSSubscribersOnly:  false,
+		TTSVipOnly:          false,
+		TTSModOnly:          false,
+		TTSIncludeUsername:  false,
+		TTSIncludeLinks:     false,
+		TTSIncludeEmotes:    false,
+		TTSIncludeEmoji:     false,
+		TTSIncludeMentions:  true,
+		TTSRemoveWords:      "",
 		IgnoreCommands:      true,
 		CommandPrefixes:     "!, /, ., $, ?",
 		IgnoreEmotesOnly:    false,
 		TTSFilterEmotes:     true,
 		IgnoredUsers:        []string{"Nightbot", "StreamElements", "Moobot", "Fossabot"},
 		HideIgnoredFromChat: false,
+		AlwaysOnTop:         false,
+		FontFamily:          "Lato",
+		MessageSpacing:      "default",
+		TextAlign:           "left",
 	}
 }
 
@@ -146,6 +185,8 @@ func LoadSettings() AppSettings {
 				s.OAuthToken = val
 			case "username":
 				s.Username = val
+			case "userId":
+				s.UserID = val
 			case "clientId":
 				if val != "" {
 					s.ClientID = val
@@ -178,6 +219,40 @@ func LoadSettings() AppSettings {
 				if val != "" {
 					s.TTSVoiceLocal = val
 				}
+			case "ttsSpeed":
+				if v, err := strconv.ParseFloat(val, 64); err == nil && v > 0 {
+					s.TTSSpeed = v
+				}
+			case "ttsAudioDevice":
+				s.TTSAudioDevice = val
+			case "ttsSkipHotkey":
+				if val != "" {
+					s.TTSSkipHotkey = val
+				}
+			case "ttsAllMessages":
+				s.TTSAllMessages = (val == "true")
+			case "ttsRepliesOnly":
+				s.TTSRepliesOnly = (val == "true")
+			case "ttsHighlightedOnly":
+				s.TTSHighlightedOnly = (val == "true")
+			case "ttsSubscribersOnly":
+				s.TTSSubscribersOnly = (val == "true")
+			case "ttsVipOnly":
+				s.TTSVipOnly = (val == "true")
+			case "ttsModOnly":
+				s.TTSModOnly = (val == "true")
+			case "ttsIncludeUsername":
+				s.TTSIncludeUsername = (val == "true")
+			case "ttsIncludeLinks":
+				s.TTSIncludeLinks = (val == "true")
+			case "ttsIncludeEmotes":
+				s.TTSIncludeEmotes = (val == "true")
+			case "ttsIncludeEmoji":
+				s.TTSIncludeEmoji = (val == "true")
+			case "ttsIncludeMentions":
+				s.TTSIncludeMentions = (val == "true")
+			case "ttsRemoveWords":
+				s.TTSRemoveWords = val
 			case "ignoreCommands":
 				s.IgnoreCommands = (val == "true")
 			case "commandPrefixes":
@@ -195,6 +270,20 @@ func LoadSettings() AppSettings {
 				}
 			case "hideIgnoredFromChat":
 				s.HideIgnoredFromChat = (val == "true")
+			case "alwaysOnTop":
+				s.AlwaysOnTop = (val == "true")
+			case "fontFamily":
+				if val != "" {
+					s.FontFamily = val
+				}
+			case "messageSpacing":
+				if val != "" {
+					s.MessageSpacing = val
+				}
+			case "textAlign":
+				if val != "" {
+					s.TextAlign = val
+				}
 			}
 		}
 	}
@@ -236,6 +325,7 @@ func SaveSettings(s AppSettings) error {
 		"maxMessages":         strconv.Itoa(s.MaxMessages),
 		"oauthToken":          s.OAuthToken,
 		"username":            s.Username,
+		"userId":              s.UserID,
 		"clientId":            s.ClientID,
 		"joinedChannels":      string(chansJSON),
 		"channelColors":       string(colorsJSON),
@@ -244,12 +334,31 @@ func SaveSettings(s AppSettings) error {
 		"ttsEngine":           s.TTSEngine,
 		"ttsVoice":            s.TTSVoice,
 		"ttsVoiceLocal":       s.TTSVoiceLocal,
+		"ttsSpeed":            strconv.FormatFloat(s.TTSSpeed, 'f', 2, 64),
+		"ttsAudioDevice":      s.TTSAudioDevice,
+		"ttsSkipHotkey":       s.TTSSkipHotkey,
+		"ttsAllMessages":      strconv.FormatBool(s.TTSAllMessages),
+		"ttsRepliesOnly":      strconv.FormatBool(s.TTSRepliesOnly),
+		"ttsHighlightedOnly":  strconv.FormatBool(s.TTSHighlightedOnly),
+		"ttsSubscribersOnly":  strconv.FormatBool(s.TTSSubscribersOnly),
+		"ttsVipOnly":          strconv.FormatBool(s.TTSVipOnly),
+		"ttsModOnly":          strconv.FormatBool(s.TTSModOnly),
+		"ttsIncludeUsername":  strconv.FormatBool(s.TTSIncludeUsername),
+		"ttsIncludeLinks":     strconv.FormatBool(s.TTSIncludeLinks),
+		"ttsIncludeEmotes":    strconv.FormatBool(s.TTSIncludeEmotes),
+		"ttsIncludeEmoji":     strconv.FormatBool(s.TTSIncludeEmoji),
+		"ttsIncludeMentions":  strconv.FormatBool(s.TTSIncludeMentions),
+		"ttsRemoveWords":      s.TTSRemoveWords,
 		"ignoreCommands":      strconv.FormatBool(s.IgnoreCommands),
 		"commandPrefixes":     s.CommandPrefixes,
 		"ignoreEmotesOnly":    strconv.FormatBool(s.IgnoreEmotesOnly),
 		"ttsFilterEmotes":     strconv.FormatBool(s.TTSFilterEmotes),
 		"ignoredUsers":        string(ignoredUsersJSON),
 		"hideIgnoredFromChat": strconv.FormatBool(s.HideIgnoredFromChat),
+		"alwaysOnTop":         strconv.FormatBool(s.AlwaysOnTop),
+		"fontFamily":          s.FontFamily,
+		"messageSpacing":      s.MessageSpacing,
+		"textAlign":           s.TextAlign,
 	}
 
 	for k, v := range pairs {

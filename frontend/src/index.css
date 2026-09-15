@@ -2,21 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Hallmark · genre: atmospheric · theme: Terminal/Obsidian · typography: Geist + JetBrains Mono · pre-emit critique: P5 H5 E5 S5 R5 V5 */
+/* Modern Dark Stream Companion Palette (Matches Screenshots 1 & 2) */
 :root {
-  --color-paper: #0c0d12;
-  --color-paper-2: #13151c;
-  --color-paper-3: #1a1d26;
-  --color-rule: rgba(255, 255, 255, 0.07);
+  --color-canvas: #181920;
+  --color-surface: #242631;
+  --color-surface-card: #242631;
+  --color-surface-preview: #1b1c24;
+  --color-surface-elevated: #2c2e3b;
+  --color-surface-hover: #2f3240;
+  
+  --color-rule: rgba(255, 255, 255, 0.06);
   --color-rule-strong: rgba(255, 255, 255, 0.12);
-  --color-ink: #f1f3f7;
-  --color-ink-muted: #8c93a4;
-  --color-ink-faint: #4e5564;
-  --color-accent: #10b981;
-  --color-accent-hover: #059669;
-  --color-focus: #10b981;
+  --color-rule-active: rgba(59, 130, 246, 0.5);
 
-  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --color-ink: #ECECF1;
+  --color-ink-secondary: #9E9EB2;
+  --color-ink-muted: #6C7082;
+  --color-ink-faint: #474A58;
+
+  --color-accent-twitch: #9146FF;
+  --color-accent-blue: #3B82F6;
+  --color-accent-purple: #A855F7;
+  --color-accent-live: #10B981;
+  --color-accent-live-hover: #059669;
+  --color-accent-hype: #EC4899;
+  --color-accent-cheer: #F59E0B;
+  --color-accent-danger: #EF4444;
+
+  --font-sans: 'Lato', 'Inter', 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 
@@ -25,7 +38,7 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: var(--color-paper);
+  background-color: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans);
   letter-spacing: -0.01em;

@@ -30,6 +30,14 @@ export function GetTTSVoices() {
   return window['go']['main']['App']['GetTTSVoices']();
 }
 
+export function GetWidgetThemes() {
+  return window['go']['main']['App']['GetWidgetThemes']();
+}
+
+export function GetWidgetURL() {
+  return window['go']['main']['App']['GetWidgetURL']();
+}
+
 export function JoinChannel(arg1) {
   return window['go']['main']['App']['JoinChannel'](arg1);
 }
@@ -42,12 +50,20 @@ export function LogoutTwitch() {
   return window['go']['main']['App']['LogoutTwitch']();
 }
 
+export function OpenThemesDir() {
+  return window['go']['main']['App']['OpenThemesDir']();
+}
+
 export function ResizeWindowForSettings(arg1) {
   return window['go']['main']['App']['ResizeWindowForSettings'](arg1);
 }
 
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
+export function SendMessage(arg1, arg2) {
+  return window['go']['main']['App']['SendMessage'](arg1, arg2);
 }
 
 export function SpeakText(arg1, arg2) {
