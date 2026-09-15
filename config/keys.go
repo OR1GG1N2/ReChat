@@ -12,9 +12,10 @@ const (
 	OAuthRedirectHost = "127.0.0.1:17777"
 
 	// Twitch Network Endpoints
-	TwitchIRCWebSocketURL = "wss://irc-ws.chat.twitch.tv:443"
-	TwitchHelixUsersURL   = "https://api.twitch.tv/helix/users"
-	TwitchOAuthAuthURL    = "https://id.twitch.tv/oauth2/authorize"
+	TwitchIRCWebSocketURL      = "wss://irc-ws.chat.twitch.tv:443"
+	TwitchHelixUsersURL        = "https://api.twitch.tv/helix/users"
+	TwitchHelixBadgesGlobalURL = "https://api.twitch.tv/helix/chat/badges/global"
+	TwitchOAuthAuthURL         = "https://id.twitch.tv/oauth2/authorize"
 
 	// Database File Name
 	DBFileName = "settings.db"

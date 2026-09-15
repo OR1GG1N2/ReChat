@@ -17,9 +17,10 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "ReChat - Twitch Chat",
-		Width:  450,
-		Height: 700,
+		Title:     "ReChat - Twitch Chat",
+		Width:     450,
+		Height:    700,
+		Frameless: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

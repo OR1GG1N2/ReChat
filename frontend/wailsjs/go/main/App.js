@@ -10,12 +10,24 @@ export function DisconnectChannel() {
   return window['go']['main']['App']['DisconnectChannel']();
 }
 
+export function GetEmotes() {
+  return window['go']['main']['App']['GetEmotes']();
+}
+
+export function GetGlobalBadges() {
+  return window['go']['main']['App']['GetGlobalBadges']();
+}
+
 export function GetJoinedChannels() {
   return window['go']['main']['App']['GetJoinedChannels']();
 }
 
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
+}
+
+export function GetTTSVoices() {
+  return window['go']['main']['App']['GetTTSVoices']();
 }
 
 export function JoinChannel(arg1) {
@@ -30,8 +42,16 @@ export function LogoutTwitch() {
   return window['go']['main']['App']['LogoutTwitch']();
 }
 
+export function ResizeWindowForSettings(arg1) {
+  return window['go']['main']['App']['ResizeWindowForSettings'](arg1);
+}
+
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
+export function SpeakText(arg1, arg2) {
+  return window['go']['main']['App']['SpeakText'](arg1, arg2);
 }
 
 export function StartTwitchAuth() {

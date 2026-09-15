@@ -2,12 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hallmark · genre: atmospheric · theme: Terminal/Obsidian · typography: Geist + JetBrains Mono · pre-emit critique: P5 H5 E5 S5 R5 V5 */
+:root {
+  --color-paper: #0c0d12;
+  --color-paper-2: #13151c;
+  --color-paper-3: #1a1d26;
+  --color-rule: rgba(255, 255, 255, 0.07);
+  --color-rule-strong: rgba(255, 255, 255, 0.12);
+  --color-ink: #f1f3f7;
+  --color-ink-muted: #8c93a4;
+  --color-ink-faint: #4e5564;
+  --color-accent: #10b981;
+  --color-accent-hover: #059669;
+  --color-focus: #10b981;
+
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: #0f0f0f;
-  color: #e5e7eb;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
+}
+
+/* Hallmark tactile scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
