@@ -1,6 +1,6 @@
 import React from 'react';
 import { WindowMinimise, WindowToggleMaximise, Quit } from '../../wailsjs/runtime/runtime';
-import { Settings, Minus, Square, X, ArrowLeft } from 'lucide-react';
+import { Settings, Minus, Square, X, ArrowLeft, Gamepad2 } from 'lucide-react';
 
 export default function CustomTitleBar({
   isSettingsMode = false,
@@ -8,11 +8,13 @@ export default function CustomTitleBar({
   onOpenSettings,
   onCloseSettings,
   onBack,
+  onToggleGameMode,
 }) {
   return (
     <header
       className="h-8 bg-[#181920] border-b border-white/[0.04] flex items-center justify-between px-2.5 font-sans text-xs text-[#9E9EB2] select-none shrink-0 tracking-tight transition-colors"
       style={{ '--wails-draggable': 'drag' }}
+      onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
     >
       {/* Left side / Title area: always draggable */}
       <div
@@ -38,9 +40,12 @@ export default function CustomTitleBar({
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
             <span className="font-semibold text-[11px] text-[#6C7082] tracking-wider uppercase">
               ReChat
+            </span>
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-amber-400/90 font-medium tracking-tight">
+              1.1 - Alpha
             </span>
           </div>
         )}
@@ -61,14 +66,24 @@ export default function CustomTitleBar({
             <X className="w-4 h-4" />
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-[#9E9EB2] hover:text-[#ECECF1] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors cursor-pointer"
-            title="Настройки"
-          >
-            <Settings className="w-3.5 h-3.5" />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={onToggleGameMode}
+              className="w-6 h-6 flex items-center justify-center rounded-md text-[#9E9EB2] hover:text-emerald-400 hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors cursor-pointer"
+              title="Игровой режим (Ctrl+Shift+G)"
+            >
+              <Gamepad2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="w-6 h-6 flex items-center justify-center rounded-md text-[#9E9EB2] hover:text-[#ECECF1] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors cursor-pointer"
+              title="Настройки"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+          </>
         )}
 
         {/* Windows System Control Buttons */}

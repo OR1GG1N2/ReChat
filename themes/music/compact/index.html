@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now Playing - Compact Pill</title>
+  <link rel="stylesheet" href="/widget/music/assets/compact/style.css">
+</head>
+<body>
+  <div id="widget-container" class="compact-pill hidden">
+    <!-- Mini Circular Cover -->
+    <div class="pill-cover-wrapper" id="cover-wrap">
+      <div class="pill-ring-glow"></div>
+      <img id="cover-img" src="" alt="Cover" class="pill-cover-img" style="display:none;" />
+      <div id="cover-fallback" class="pill-cover-fallback">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M9 18V5l12-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Typography -->
+    <div class="pill-text-col">
+      <div class="pill-title-box">
+        <span class="pill-title" id="track-title">Ожидание трека...</span>
+      </div>
+      <div class="pill-artist" id="track-artist">—</div>
+    </div>
+
+    <!-- Mini Equalizer -->
+    <div class="pill-vis" id="pill-vis">
+      <span class="p-bar"></span>
+      <span class="p-bar"></span>
+      <span class="p-bar"></span>
+      <span class="p-bar"></span>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('widget-container');
+    const coverImg = document.getElementById('cover-img');
+    const coverFallback = document.getElementById('cover-fallback');
+    const coverWrap = document.getElementById('cover-wrap');
+    const titleEl = document.getElementById('track-title');
+    const artistEl = document.getElementById('track-artist');
+    const pillVis = document.getElementById('pill-vis');
+
+    let currentTrackKey = '';
+    let hideTimeout = null;
+
+    let config = {
+      scale: 100,
+      showCover: true,
+      showArtist: true,
+      showVisualizer: true,
+      hideOnPause: true,
+      pauseDelay: 3,
+      accentColor: 'emerald'
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+    if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+
+    const ACCENTS = {
+      emerald: { hex: '#10B981', glow: 'rgba(16, 185, 129, 0.45)' },
+      purple:  { hex: '#9146FF', glow: 'rgba(145, 70, 255, 0.45)' },
+      blue:    { hex: '#3B82F6', glow: 'rgba(59, 130, 246, 0.45)' },
+      pink:    { hex: '#EC4899', glow: 'rgba(236, 72, 153, 0.45)' },
+      amber:   { hex: '#F59E0B', glow: 'rgba(245, 158, 11, 0.45)' },
+      white:   { hex: '#F3F4F6', glow: 'rgba(243, 244, 246, 0.45)' }
+    };
+
+    function applyConfig(cfg) {
+      if (!cfg) return;
+      config = { ...config, ...cfg };
+      if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+      if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+
+      document.documentElement.style.setProperty('--pill-scale', (config.scale || 100) / 100);
+      const acc = ACCENTS[config.accentColor] || ACCENTS.emerald;
+      document.documentElement.style.setProperty('--accent-color', acc.hex);
+      document.documentElement.style.setProperty('--accent-glow', acc.glow);
+
+      if (coverWrap) coverWrap.style.display = config.showCover !== false ? 'flex' : 'none';
+      if (artistEl) artistEl.style.display = config.showArtist !== false ? 'block' : 'none';
+      if (pillVis) pillVis.style.display = config.showVisualizer !== false ? 'flex' : 'none';
+    }
+
+    applyConfig(config);
+
+    function updateTrack(data) {
+      if (!data) return;
+      const isPlaying = data.status === 'playing';
+      const hasTitle = data.title && data.title.trim().length > 0;
+
+      if (!hasTitle || (!isPlaying && data.status !== 'paused')) {
+        hideWidget();
+        return;
+      }
+
+      const trackKey = (data.title || '') + '|' + (data.artist || '');
+      const isNew = trackKey !== currentTrackKey;
+      currentTrackKey = trackKey;
+
+      titleEl.textContent = data.title || 'Без названия';
+      artistEl.textContent = data.artist || (data.album || 'Неизвестный исполнитель');
+
+      // Marquee
+      titleEl.classList.remove('marquee');
+      if (titleEl.scrollWidth > titleEl.parentElement.clientWidth + 4) {
+        titleEl.classList.add('marquee');
+      }
+
+      if (data.thumbnail && data.thumbnail.length > 50) {
+        coverImg.src = data.thumbnail;
+        coverImg.style.display = 'block';
+        coverFallback.style.display = 'none';
+      } else {
+        coverImg.style.display = 'none';
+        coverFallback.style.display = 'flex';
+      }
+
+      if (isPlaying) {
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+        container.classList.remove('paused');
+        showWidget(isNew);
+      } else {
+        container.classList.add('paused');
+        if (config.hideOnPause) {
+          if (!hideTimeout) {
+            const delay = Math.max(config.pauseDelay || 3, 0) * 1000;
+            hideTimeout = setTimeout(hideWidget, delay);
+          }
+        }
+      }
+    }
+
+    function showWidget(animate) {
+      container.classList.remove('hidden');
+      if (animate) {
+        container.classList.remove('animate-in');
+        void container.offsetWidth;
+        container.classList.add('animate-in');
+      }
+    }
+
+    function hideWidget() {
+      container.classList.add('hidden');
+    }
+
+    function connectSSE() {
+      const es = new EventSource('/widget/music/events');
+      es.addEventListener('track', (e) => {
+        try { updateTrack(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('config', (e) => {
+        try { applyConfig(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('reload', () => window.location.reload());
+      es.onerror = () => {
+        setTimeout(connectSSE, 3000);
+        es.close();
+      };
+    }
+
+    connectSSE();
+  </script>
+</body>
+</html>

@@ -45,6 +45,27 @@ export namespace config {
 	    fontFamily: string;
 	    messageSpacing: string;
 	    textAlign: string;
+	    proxyEnabled: boolean;
+	    proxyType: string;
+	    proxyAddress: string;
+	    proxyAuth: boolean;
+	    proxyUser: string;
+	    proxyPassword: string;
+	    wireGuardPrivateKey: string;
+	    wireGuardPublicKey: string;
+	    wireGuardAddress: string;
+	    wireGuardDNS: string;
+	    wireGuardEndpoint: string;
+	    wireGuardAllowedIPs: string;
+	    musicStyle: string;
+	    musicAccentColor: string;
+	    musicShowCover: boolean;
+	    musicShowVisualizer: boolean;
+	    musicShowArtist: boolean;
+	    musicHideOnPause: boolean;
+	    musicPauseDelay: number;
+	    musicScale: number;
+	    musicBgOpacity: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSettings(source);
@@ -96,6 +117,27 @@ export namespace config {
 	        this.fontFamily = source["fontFamily"];
 	        this.messageSpacing = source["messageSpacing"];
 	        this.textAlign = source["textAlign"];
+	        this.proxyEnabled = source["proxyEnabled"];
+	        this.proxyType = source["proxyType"];
+	        this.proxyAddress = source["proxyAddress"];
+	        this.proxyAuth = source["proxyAuth"];
+	        this.proxyUser = source["proxyUser"];
+	        this.proxyPassword = source["proxyPassword"];
+	        this.wireGuardPrivateKey = source["wireGuardPrivateKey"];
+	        this.wireGuardPublicKey = source["wireGuardPublicKey"];
+	        this.wireGuardAddress = source["wireGuardAddress"];
+	        this.wireGuardDNS = source["wireGuardDNS"];
+	        this.wireGuardEndpoint = source["wireGuardEndpoint"];
+	        this.wireGuardAllowedIPs = source["wireGuardAllowedIPs"];
+	        this.musicStyle = source["musicStyle"];
+	        this.musicAccentColor = source["musicAccentColor"];
+	        this.musicShowCover = source["musicShowCover"];
+	        this.musicShowVisualizer = source["musicShowVisualizer"];
+	        this.musicShowArtist = source["musicShowArtist"];
+	        this.musicHideOnPause = source["musicHideOnPause"];
+	        this.musicPauseDelay = source["musicPauseDelay"];
+	        this.musicScale = source["musicScale"];
+	        this.musicBgOpacity = source["musicBgOpacity"];
 	    }
 	}
 

@@ -9,12 +9,16 @@ import (
 	"time"
 
 	"ReChat/config"
+	"ReChat/proxy"
 )
 
 // AvatarCache fetches and caches Twitch profile picture URLs by login name.
 type AvatarCache struct {
-	mu    sync.RWMutex
-	cache map[string]avatarEntry
+	mu              sync.RWMutex
+	cache           map[string]avatarEntry
+	pendingMu       sync.Mutex
+	pending         map[string][]chan string
+	onAvatarUpdated func(login, avatarURL string)
 }
 
 type avatarEntry struct {
@@ -25,20 +29,29 @@ type avatarEntry struct {
 const avatarTTL = 30 * time.Minute
 
 var globalAvatarCache = &AvatarCache{
-	cache: make(map[string]avatarEntry),
+	cache:   make(map[string]avatarEntry),
+	pending: make(map[string][]chan string),
 }
 
-// GetAvatarURL returns the Twitch profile picture URL for a login, cached for 30 min.
-// Returns empty string on error (caller should fall back to initials).
+// SetOnAvatarUpdated registers a callback triggered when an avatar URL is retrieved.
+func SetOnAvatarUpdated(fn func(login, avatarURL string)) {
+	globalAvatarCache.mu.Lock()
+	globalAvatarCache.onAvatarUpdated = fn
+	globalAvatarCache.mu.Unlock()
+}
+
+// GetAvatarURL returns the Twitch profile picture URL for a login.
+// If not cached, it waits up to 800ms for a synchronous fetch so the first message
+// from a user appears in the widget WITH their avatar immediately.
 func GetAvatarURL(login string) string {
 	if login == "" {
 		return ""
 	}
-	login = strings.ToLower(login)
-	return globalAvatarCache.get(login)
+	login = strings.ToLower(strings.TrimSpace(login))
+	return globalAvatarCache.getOrFetchAsync(login)
 }
 
-func (ac *AvatarCache) get(login string) string {
+func (ac *AvatarCache) getOrFetchAsync(login string) string {
 	ac.mu.RLock()
 	entry, ok := ac.cache[login]
 	ac.mu.RUnlock()
@@ -47,28 +60,101 @@ func (ac *AvatarCache) get(login string) string {
 		return entry.url
 	}
 
-	// Fetch in background; return empty now so the caller doesn't block
-	go ac.fetch(login)
+	ac.pendingMu.Lock()
+	if _, exists := ac.pending[login]; exists {
+		ac.pendingMu.Unlock()
+		return ""
+	}
+	ac.pending[login] = []chan string{}
+	ac.pendingMu.Unlock()
+
+	go ac.doFetch(login)
 	return ""
 }
 
-func (ac *AvatarCache) fetch(login string) {
+func (ac *AvatarCache) getOrFetch(login string, timeout time.Duration) string {
+	ac.mu.RLock()
+	entry, ok := ac.cache[login]
+	ac.mu.RUnlock()
+
+	if ok && time.Since(entry.fetchedAt) < avatarTTL {
+		return entry.url
+	}
+
+	// Check if already being fetched by another concurrent goroutine
+	ac.pendingMu.Lock()
+	if waiters, exists := ac.pending[login]; exists {
+		ch := make(chan string, 1)
+		ac.pending[login] = append(waiters, ch)
+		ac.pendingMu.Unlock()
+
+		select {
+		case url := <-ch:
+			return url
+		case <-time.After(timeout):
+			return ""
+		}
+	}
+
+	// Register this login as currently fetching
+	ch := make(chan string, 1)
+	ac.pending[login] = []chan string{ch}
+	ac.pendingMu.Unlock()
+
+	// Execute fetch in background
+	go ac.doFetch(login)
+
+	select {
+	case url := <-ch:
+		return url
+	case <-time.After(timeout):
+		return ""
+	}
+}
+
+func (ac *AvatarCache) doFetch(login string) {
+	avatarURL := ac.fetchHelix(login)
+
+	ac.mu.Lock()
+	ac.cache[login] = avatarEntry{url: avatarURL, fetchedAt: time.Now()}
+	onUpdated := ac.onAvatarUpdated
+	ac.mu.Unlock()
+
+	ac.pendingMu.Lock()
+	waiters := ac.pending[login]
+	delete(ac.pending, login)
+	ac.pendingMu.Unlock()
+
+	for _, w := range waiters {
+		select {
+		case w <- avatarURL:
+		default:
+		}
+	}
+
+	if avatarURL != "" && onUpdated != nil {
+		onUpdated(login, avatarURL)
+	}
+}
+
+func (ac *AvatarCache) fetchHelix(login string) string {
 	settings := config.LoadSettings()
-	if settings.OAuthToken == "" {
-		return
+	token := strings.TrimPrefix(settings.OAuthToken, "oauth:")
+	if token == "" {
+		return ""
 	}
 
 	url := fmt.Sprintf("https://api.twitch.tv/helix/users?login=%s", login)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return
+		return ""
 	}
 	req.Header.Set("Client-Id", config.TwitchClientID)
-	req.Header.Set("Authorization", "Bearer "+settings.OAuthToken)
+	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := (&http.Client{Timeout: 8 * time.Second}).Do(req)
+	resp, err := proxy.GetHTTPClient().Do(req)
 	if err != nil || resp.StatusCode != 200 {
-		return
+		return ""
 	}
 	defer resp.Body.Close()
 
@@ -78,21 +164,16 @@ func (ac *AvatarCache) fetch(login string) {
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil || len(result.Data) == 0 {
-		return
+		return ""
 	}
 
-	avatarURL := result.Data[0].ProfileImageURL
-	ac.mu.Lock()
-	ac.cache[login] = avatarEntry{url: avatarURL, fetchedAt: time.Now()}
-	ac.mu.Unlock()
-
-	// Note: avatar URL is available next time the user sends a message
+	return result.Data[0].ProfileImageURL
 }
 
-// WarmAvatar pre-fetches an avatar immediately (call when user joins channel etc.)
+// WarmAvatar pre-fetches an avatar immediately.
 func WarmAvatar(login string) {
 	if login == "" {
 		return
 	}
-	go globalAvatarCache.fetch(strings.ToLower(login))
+	go globalAvatarCache.getOrFetch(strings.ToLower(strings.TrimSpace(login)), 5*time.Second)
 }

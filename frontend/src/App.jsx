@@ -9,6 +9,8 @@ import {
   SpeakText,
   JoinChannel,
   SendMessage,
+  ToggleGameMode,
+  IsGameMode,
 } from '../wailsjs/go/main/App';
 import SettingsView from './components/SettingsView';
 import CustomTitleBar from './components/CustomTitleBar';
@@ -157,6 +159,20 @@ export default function App() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isTTSActive, setIsTTSActive] = useState(false);
+    const [isGameMode, setIsGameMode] = useState(false);
+
+  useEffect(() => {
+    if (isGameMode) {
+      document.body.classList.add('game-mode');
+      document.documentElement.classList.add('game-mode');
+      document.documentElement.style.background = 'transparent';
+    } else {
+      document.body.classList.remove('game-mode');
+      document.documentElement.classList.remove('game-mode');
+      document.documentElement.style.background = '';
+    }
+  }, [isGameMode]);
+  const [showGameModeHint, setShowGameModeHint] = useState(false);
 
   const [settings, setSettings] = useState({
     defaultChannel: '',
@@ -435,18 +451,29 @@ export default function App() {
     setIsTTSActive(false);
   };
 
-  // Keyboard shortcut listener for skipping current TTS
+  // Keyboard shortcut listener for Game Mode toggle and skipping current TTS
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Toggle Game Mode via keyboard shortcut (works in Russian / any keyboard layout via e.code)
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        (e.code === 'KeyG' || e.key.toLowerCase() === 'g' || e.code === 'KeyO' || e.key.toLowerCase() === 'o')
+      ) {
+        e.preventDefault();
+        handleToggleGameMode();
+        return;
+      }
+
       const hotkey = (settings.ttsSkipHotkey || 'Escape').trim().toLowerCase();
       let isMatch = false;
 
-      if (hotkey === 'escape' && e.key === 'Escape') {
+      if (hotkey === 'escape' && (e.key === 'Escape' || e.code === 'Escape')) {
         isMatch = true;
-      } else if (hotkey === 'f8' && e.key === 'F8') {
+      } else if (hotkey === 'f8' && (e.key === 'F8' || e.code === 'F8')) {
         isMatch = true;
       } else if (hotkey === 'ctrl+shift+s') {
-        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') isMatch = true;
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) isMatch = true;
       } else if (e.key.toLowerCase() === hotkey) {
         isMatch = true;
       }
@@ -460,6 +487,46 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [settings.ttsSkipHotkey, isTTSActive]);
+
+  // Game Mode (Overlay) state sync and global events
+  useEffect(() => {
+    IsGameMode()
+      .then((active) => {
+        setIsGameMode(Boolean(active));
+      })
+      .catch(() => {});
+
+    const unsub = EventsOn('gamemode:changed', (enabled) => {
+      const active = Boolean(enabled);
+      setIsGameMode(active);
+      if (active) {
+        setShowGameModeHint(true);
+        setTimeout(() => setShowGameModeHint(false), 4000);
+      }
+    });
+
+    const unsubSkip = EventsOn('tts:skip', () => {
+      handleSkipCurrentTTS();
+    });
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+      if (typeof unsubSkip === 'function') unsubSkip();
+    };
+  }, []);
+
+  const handleToggleGameMode = async () => {
+    try {
+      const active = await ToggleGameMode();
+      setIsGameMode(Boolean(active));
+      if (active) {
+        setShowGameModeHint(true);
+        setTimeout(() => setShowGameModeHint(false), 4000);
+      }
+    } catch (err) {
+      console.error('Failed to toggle game mode:', err);
+    }
+  };
 
   // Listen for realtime chat events from Go backend
   useEffect(() => {
@@ -487,19 +554,31 @@ export default function App() {
         if (msg.eventType === 'reward') {
           const rewardId = msg.eventData?.rewardId;
           const userLower = (msg.user || msg.displayName || '').toLowerCase();
-          const isDup = prev.slice(-20).some((m) => {
+          const textTrimmed = (msg.message || '').trim().toLowerCase();
+          const sliceOffset = Math.max(0, prev.length - 20);
+          const dupRelIdx = prev.slice(-20).findIndex((m) => {
             if (m.eventType !== 'reward') return false;
             if (m.id && msg.id && m.id === msg.id) return true;
-            if (
-              rewardId &&
-              m.eventData?.rewardId === rewardId &&
-              (m.user || m.displayName || '').toLowerCase() === userLower
-            ) {
-              return true;
+            const mUser = (m.user || m.displayName || '').toLowerCase();
+            const mText = (m.message || '').trim().toLowerCase();
+            if (mUser === userLower) {
+              if (rewardId && m.eventData?.rewardId === rewardId) return true;
+              if (textTrimmed && mText === textTrimmed) return true;
             }
             return false;
           });
-          if (isDup) return prev;
+
+          if (dupRelIdx !== -1) {
+            const actualIdx = sliceOffset + dupRelIdx;
+            const existing = prev[actualIdx];
+            // If new message has rich EventSub info (rewardCost/rewardTitle) and existing doesn't, upgrade it
+            if ((msg.eventData?.rewardCost || msg.eventData?.rewardTitle) && !existing.eventData?.rewardCost) {
+              const copy = [...prev];
+              copy[actualIdx] = { ...existing, ...msg };
+              return copy;
+            }
+            return prev;
+          }
         }
 
         const updated = [...prev, msg];
@@ -611,6 +690,17 @@ export default function App() {
   };
 
   const closeSettings = () => {
+    GetSettings()
+      .then((loaded) => {
+        if (loaded) {
+          setSettings((prev) => ({
+            ...prev,
+            ...loaded,
+            channelColors: loaded.channelColors || {},
+          }));
+        }
+      })
+      .catch((err) => console.error('Failed to reload settings on close:', err));
     setActiveView('chat');
   };
 
@@ -641,17 +731,45 @@ export default function App() {
   });
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#181920] text-[#ECECF1] select-none overflow-hidden font-sans relative">
-      <CustomTitleBar
-        isSettingsMode={false}
-        onOpenSettings={openSettings}
-      />
+    <div
+      className={`flex flex-col h-screen w-full select-none overflow-hidden font-sans relative ${
+        isGameMode
+          ? 'bg-transparent border-none outline-none shadow-none text-[#ECECF1] pointer-events-none'
+          : 'bg-[#181920] text-[#ECECF1] transition-colors'
+      }`}
+      style={isGameMode ? { background: 'transparent', backgroundColor: 'transparent' } : {}}
+    >
+      {!isGameMode && (
+        <CustomTitleBar
+          isSettingsMode={false}
+          onOpenSettings={openSettings}
+          onToggleGameMode={handleToggleGameMode}
+        />
+      )}
+
+      {/* Floating Game Mode notification banner when activated */}
+      {isGameMode && showGameModeHint && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-fade-in">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#181920]/95 border border-emerald-500/40 text-emerald-300 text-xs font-medium shadow-2xl backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Игровой режим (Оверлей)</span>
+            <span className="text-[10px] opacity-80 font-mono bg-white/10 px-1.5 py-0.5 rounded border border-white/10">
+              Ctrl+Shift+G
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Main Stream Chat View */}
       <main
         ref={chatContainerRef}
         onScroll={handleScroll}
-        className="relative flex-1 overflow-y-auto px-1.5 py-1.5 space-y-0.5 bg-[#181920] custom-scrollbar"
+        className={`relative flex-1 overflow-y-auto px-1.5 py-1.5 space-y-0.5 custom-scrollbar ${
+          isGameMode
+            ? 'bg-transparent border-none outline-none shadow-none no-scrollbar scrollbar-none [text-shadow:_0_1px_4px_rgba(0,0,0,0.9),_0_0_2px_rgba(0,0,0,0.9)]'
+            : 'bg-[#181920]'
+        }`}
+        style={isGameMode ? { background: 'transparent', backgroundColor: 'transparent' } : {}}
       >
         {visibleMessages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-[#8E92A4] font-sans text-xs gap-3 select-none py-12 px-6 text-center">
@@ -749,96 +867,98 @@ export default function App() {
         )}
       </div>
 
-      {/* Docked Chat Input Bar */}
-      <footer className="shrink-0 p-2 bg-[#181920] border-t border-white/[0.04]">
-        {sendError && (
-          <div className="text-[11px] text-rose-400 font-medium px-2 pb-1.5 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
-            <span className="truncate">{sendError}</span>
-          </div>
-        )}
-
-        {settings.oauthToken && settings.username ? (
-          <form
-            onSubmit={handleSendMessage}
-            className="flex items-center gap-1.5 bg-[#242631] border border-white/[0.06] rounded-xl px-2.5 py-1.5 shadow-sm focus-within:border-[#3B82F6] transition-colors"
-          >
-            {/* Target channel selector / pill */}
-            {joinedChannels.length > 1 ? (
-              <div className="relative shrink-0">
-                <select
-                  value={activeSendChannel || joinedChannels[0]}
-                  onChange={(e) => setActiveSendChannel(e.target.value)}
-                  className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-[#ECECF1] text-[11px] font-semibold pl-2 pr-5 py-1 rounded-md border border-white/[0.06] outline-none cursor-pointer"
-                  title="Выберите канал для отправки сообщения"
-                >
-                  {joinedChannels.map((ch) => (
-                    <option key={ch} value={ch}>
-                      #{ch}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3 h-3 text-[#8E92A4] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            ) : (
-              <span
-                onClick={openSettings}
-                className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-[#8E92A4] hover:text-[#ECECF1] px-1 py-0.5 rounded cursor-pointer transition-colors select-none"
-                title="Нажмите для перехода в настройки каналов"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span>#{activeSendChannel || joinedChannels[0] || 'chat'}</span>
-              </span>
-            )}
-
-            {/* Message input field */}
-            <input
-              ref={chatInputRef}
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={handleInputKeyDown}
-              disabled={joinedChannels.length === 0 || isSending}
-              placeholder={
-                joinedChannels.length === 0
-                  ? 'Сначала подключите канал в настройках...'
-                  : `Сообщение в #${activeSendChannel || joinedChannels[0]}...`
-              }
-              className="flex-1 min-w-0 bg-transparent text-xs text-[#ECECF1] placeholder:text-[#6C7082] outline-none select-text disabled:opacity-50"
-            />
-
-            {/* Send button */}
-            <button
-              type="submit"
-              disabled={!chatInput.trim() || isSending || joinedChannels.length === 0}
-              className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#3B82F6] hover:bg-blue-600 disabled:opacity-30 disabled:hover:bg-[#3B82F6] text-white transition-all cursor-pointer shrink-0 shadow-xs"
-              title="Отправить (Enter)"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </form>
-        ) : (
-          /* Not authenticated banner */
-          <button
-            type="button"
-            onClick={openSettings}
-            className="w-full flex items-center justify-between p-2 rounded-xl bg-[#242631] hover:bg-[#2C2E3C] border border-white/[0.06] text-xs transition-colors cursor-pointer group"
-          >
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-md bg-[#9146FF] flex items-center justify-center text-white shrink-0 shadow-xs">
-                <TwitchIcon className="w-3.5 h-3.5 fill-white text-white" />
-              </span>
-              <span className="text-[#8E92A4] group-hover:text-[#ECECF1] transition-colors text-left text-[11px]">
-                Войдите через Twitch, чтобы писать в чат
-              </span>
+      {/* Docked Chat Input Bar (disabled/hidden in Game Mode) */}
+      {!isGameMode && (
+        <footer className="shrink-0 p-2 bg-[#181920] border-t border-white/[0.04]">
+          {sendError && (
+            <div className="text-[11px] text-rose-400 font-medium px-2 pb-1.5 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+              <span className="truncate">{sendError}</span>
             </div>
-            <span className="text-[11px] font-semibold text-[#3B82F6] flex items-center gap-1 shrink-0">
-              <span>Войти</span>
-              <LogIn className="w-3 h-3" />
-            </span>
-          </button>
-        )}
-      </footer>
+          )}
+
+          {settings.oauthToken && settings.username ? (
+            <form
+              onSubmit={handleSendMessage}
+              className="flex items-center gap-1.5 bg-[#242631] border border-white/[0.06] rounded-xl px-2.5 py-1.5 shadow-sm focus-within:border-[#3B82F6] transition-colors"
+            >
+              {/* Target channel selector / pill */}
+              {joinedChannels.length > 1 ? (
+                <div className="relative shrink-0">
+                  <select
+                    value={activeSendChannel || joinedChannels[0]}
+                    onChange={(e) => setActiveSendChannel(e.target.value)}
+                    className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-[#ECECF1] text-[11px] font-semibold pl-2 pr-5 py-1 rounded-md border border-white/[0.06] outline-none cursor-pointer"
+                    title="Выберите канал для отправки сообщения"
+                  >
+                    {joinedChannels.map((ch) => (
+                      <option key={ch} value={ch}>
+                        #{ch}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3 h-3 text-[#8E92A4] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              ) : (
+                <span
+                  onClick={openSettings}
+                  className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-[#8E92A4] hover:text-[#ECECF1] px-1 py-0.5 rounded cursor-pointer transition-colors select-none"
+                  title="Нажмите для перехода в настройки каналов"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span>#{activeSendChannel || joinedChannels[0] || 'chat'}</span>
+                </span>
+              )}
+
+              {/* Message input field */}
+              <input
+                ref={chatInputRef}
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={handleInputKeyDown}
+                disabled={joinedChannels.length === 0 || isSending}
+                placeholder={
+                  joinedChannels.length === 0
+                    ? 'Сначала подключите канал в настройках...'
+                    : `Сообщение в #${activeSendChannel || joinedChannels[0]}...`
+                }
+                className="flex-1 min-w-0 bg-transparent text-xs text-[#ECECF1] placeholder:text-[#6C7082] outline-none select-text disabled:opacity-50"
+              />
+
+              {/* Send button */}
+              <button
+                type="submit"
+                disabled={!chatInput.trim() || isSending || joinedChannels.length === 0}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#3B82F6] hover:bg-blue-600 disabled:opacity-30 disabled:hover:bg-[#3B82F6] text-white transition-all cursor-pointer shrink-0 shadow-xs"
+                title="Отправить (Enter)"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          ) : (
+            /* Not authenticated banner */
+            <button
+              type="button"
+              onClick={openSettings}
+              className="w-full flex items-center justify-between p-2 rounded-xl bg-[#242631] hover:bg-[#2C2E3C] border border-white/[0.06] text-xs transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-md bg-[#9146FF] flex items-center justify-center text-white shrink-0 shadow-xs">
+                  <TwitchIcon className="w-3.5 h-3.5 fill-white text-white" />
+                </span>
+                <span className="text-[#8E92A4] group-hover:text-[#ECECF1] transition-colors text-left text-[11px]">
+                  Войдите через Twitch, чтобы писать в чат
+                </span>
+              </div>
+              <span className="text-[11px] font-semibold text-[#3B82F6] flex items-center gap-1 shrink-0">
+                <span>Войти</span>
+                <LogIn className="w-3 h-3" />
+              </span>
+            </button>
+          )}
+        </footer>
+      )}
     </div>
   );
 }

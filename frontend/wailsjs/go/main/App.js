@@ -10,6 +10,10 @@ export function DisconnectChannel() {
   return window['go']['main']['App']['DisconnectChannel']();
 }
 
+export function GetCurrentTrack() {
+  return window['go']['main']['App']['GetCurrentTrack']();
+}
+
 export function GetEmotes() {
   return window['go']['main']['App']['GetEmotes']();
 }
@@ -20,6 +24,14 @@ export function GetGlobalBadges() {
 
 export function GetJoinedChannels() {
   return window['go']['main']['App']['GetJoinedChannels']();
+}
+
+export function GetMusicWidgetThemes() {
+  return window['go']['main']['App']['GetMusicWidgetThemes']();
+}
+
+export function GetMusicWidgetURL() {
+  return window['go']['main']['App']['GetMusicWidgetURL']();
 }
 
 export function GetSettings() {
@@ -38,6 +50,14 @@ export function GetWidgetURL() {
   return window['go']['main']['App']['GetWidgetURL']();
 }
 
+export function ImportWireGuardConf(arg1) {
+  return window['go']['main']['App']['ImportWireGuardConf'](arg1);
+}
+
+export function IsGameMode() {
+  return window['go']['main']['App']['IsGameMode']();
+}
+
 export function JoinChannel(arg1) {
   return window['go']['main']['App']['JoinChannel'](arg1);
 }
@@ -48,6 +68,14 @@ export function LeaveChannel(arg1) {
 
 export function LogoutTwitch() {
   return window['go']['main']['App']['LogoutTwitch']();
+}
+
+export function OpenAndImportWireGuardConf() {
+  return window['go']['main']['App']['OpenAndImportWireGuardConf']();
+}
+
+export function OpenMusicThemesDir() {
+  return window['go']['main']['App']['OpenMusicThemesDir']();
 }
 
 export function OpenThemesDir() {
@@ -66,10 +94,34 @@ export function SendMessage(arg1, arg2) {
   return window['go']['main']['App']['SendMessage'](arg1, arg2);
 }
 
+export function SendTestChatMessage() {
+  return window['go']['main']['App']['SendTestChatMessage']();
+}
+
+export function SendTestMusicTrack() {
+  return window['go']['main']['App']['SendTestMusicTrack']();
+}
+
+export function SetGameMode(arg1) {
+  return window['go']['main']['App']['SetGameMode'](arg1);
+}
+
 export function SpeakText(arg1, arg2) {
   return window['go']['main']['App']['SpeakText'](arg1, arg2);
 }
 
 export function StartTwitchAuth() {
   return window['go']['main']['App']['StartTwitchAuth']();
+}
+
+export function TestProxyConnection(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['TestProxyConnection'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function ToggleGameMode() {
+  return window['go']['main']['App']['ToggleGameMode']();
+}
+
+export function WireGuardTunnelStatus() {
+  return window['go']['main']['App']['WireGuardTunnelStatus']();
 }

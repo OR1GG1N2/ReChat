@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ReChat/config"
+	"ReChat/proxy"
 )
 
 type EmoteFetcher struct {
@@ -72,7 +73,7 @@ func (ef *EmoteFetcher) resolveTwitchUserID(username string) string {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 		}
 
-		resp, err := ef.httpClient.Do(req)
+		resp, err := proxy.GetHTTPClient().Do(req)
 		if err == nil {
 			defer resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -401,3 +402,15 @@ func (ef *EmoteFetcher) FetchAllEmotes(channels []string) (map[string]string, er
 	log.Printf("[Emotes] ✅ Total loaded: %d emotes for channels %v", len(newMap), channels)
 	return newMap, nil
 }
+
+// GetEmoteMap returns a thread-safe copy of all cached emotes (7TV, BTTV, FFZ, global).
+func (ef *EmoteFetcher) GetEmoteMap() map[string]string {
+	ef.mu.RLock()
+	defer ef.mu.RUnlock()
+	res := make(map[string]string, len(ef.emoteMap))
+	for k, v := range ef.emoteMap {
+		res[k] = v
+	}
+	return res
+}
+

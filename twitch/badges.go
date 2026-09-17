@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ReChat/config"
+	"ReChat/proxy"
 )
 
 type BadgeVersion struct {
@@ -60,7 +61,7 @@ func (bf *BadgeFetcher) FetchGlobalBadges() (map[string]string, error) {
 		req.Header.Set("Authorization", "Bearer "+settings.OAuthToken)
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := proxy.GetHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return bf.badgeMap, err
@@ -93,3 +94,15 @@ func (bf *BadgeFetcher) FetchGlobalBadges() (map[string]string, error) {
 
 	return bf.badgeMap, nil
 }
+
+// GetBadgeMap returns a thread-safe copy of the cached badge map.
+func (bf *BadgeFetcher) GetBadgeMap() map[string]string {
+	bf.mu.RLock()
+	defer bf.mu.RUnlock()
+	res := make(map[string]string, len(bf.badgeMap))
+	for k, v := range bf.badgeMap {
+		res[k] = v
+	}
+	return res
+}
+

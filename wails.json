@@ -7,7 +7,14 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "Developer",
+    "name": "Or1GG1n",
     "email": "dev@example.com"
+  },
+  "info": {
+    "companyName": "Or1GG1n",
+    "productName": "ReChat",
+    "productVersion": "1.1.0-alpha",
+    "copyright": "Copyright 2026",
+    "comments": "Twitch Chat Overlay"
   }
 }

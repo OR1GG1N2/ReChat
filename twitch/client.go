@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ReChat/config"
+	"ReChat/proxy"
 
 	"github.com/gorilla/websocket"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -33,13 +34,14 @@ type ChatMessage struct {
 }
 
 type Client struct {
-	ctx         context.Context
-	conn        *websocket.Conn
-	connMu      sync.Mutex
-	joinedChans map[string]bool
-	isConnected bool
-	stopChan    chan struct{}
-	onMessage   func(*ChatMessage)
+	ctx          context.Context
+	conn         *websocket.Conn
+	connMu       sync.Mutex
+	joinedChans  map[string]bool
+	isConnected  bool
+	stopChan     chan struct{}
+	onMessage    func(*ChatMessage)
+	rewardFilter func(*ChatMessage) bool
 }
 
 func NewClient() *Client {
@@ -53,6 +55,12 @@ func (c *Client) SetMessageHandler(fn func(*ChatMessage)) {
 	c.onMessage = fn
 }
 
+func (c *Client) SetRewardFilter(fn func(*ChatMessage) bool) {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	c.rewardFilter = fn
+}
+
 func (c *Client) SetContext(ctx context.Context) {
 	c.ctx = ctx
 }
@@ -62,7 +70,7 @@ func (c *Client) ensureConnectedUnlocked() error {
 		return nil
 	}
 
-	dialer := websocket.DefaultDialer
+	dialer := proxy.GetWebSocketDialer()
 	conn, _, err := dialer.Dial(config.TwitchIRCWebSocketURL, nil)
 	if err != nil {
 		c.emitStatus("error", "", fmt.Sprintf("Connection failed: %v", err))
@@ -332,9 +340,20 @@ func (c *Client) readLoop() {
 				}
 			} else if strings.Contains(line, "PRIVMSG") {
 				msg := c.parsePrivMsg(line)
-				if msg != nil && c.ctx != nil {
-					runtime.EventsEmit(c.ctx, "chat:message", msg)
-					if c.onMessage != nil { c.onMessage(msg) }
+				if msg != nil {
+					c.connMu.Lock()
+					filter := c.rewardFilter
+					c.connMu.Unlock()
+					if msg.EventType == "reward" && filter != nil && filter(msg) {
+						// Suppress duplicate reward from IRC because EventSub is active and handling it
+						continue
+					}
+					if c.ctx != nil {
+						runtime.EventsEmit(c.ctx, "chat:message", msg)
+					}
+					if c.onMessage != nil {
+						c.onMessage(msg)
+					}
 				}
 			}
 		}

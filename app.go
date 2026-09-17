@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"context"
@@ -6,13 +6,20 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	runtime_os "runtime"
 	"strconv"
+	"strings"
+	"sync"
+	"time"
 
 	"ReChat/auth"
 	"ReChat/config"
+	"ReChat/proxy"
+	"ReChat/overlay"
 	"ReChat/tts"
 	"ReChat/twitch"
+	"ReChat/media"
 	"ReChat/widget"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -28,6 +35,10 @@ type App struct {
 	ttsClient      *tts.YandexTTS
 	eventsubClient *twitch.EventSubClient
 	widgetServer   *widget.WidgetServer
+	mediaManager   *media.Manager
+	isGameMode     bool
+	lastToggleTime time.Time
+	gameModeMu     sync.Mutex
 }
 
 // NewApp creates a new App application struct
@@ -38,20 +49,85 @@ func NewApp() *App {
 		emoteFetcher: twitch.NewEmoteFetcher(),
 		ttsClient:    tts.NewYandexTTS(),
 		widgetServer: widget.NewWidgetServer(3500),
+		mediaManager: media.NewManager(),
 	}
+
+	app.widgetServer.SetBadgeFetcher(app.badgeFetcher.GetBadgeMap)
+	app.widgetServer.SetEmoteFetcher(app.emoteFetcher.GetEmoteMap)
+
+	var (
+		rewardDedupMu sync.Mutex
+		rewardDedup   = make(map[string]time.Time)
+	)
 
 	// Shared helper: convert any ChatMessage to a WidgetMessage and broadcast
 	broadcastToWidget := func(msg *twitch.ChatMessage) {
 		if msg == nil {
 			return
 		}
+
+		if msg.IsEvent && msg.EventType == "reward" {
+			// If EventSub is active and this reward came from IRC, suppress duplicate
+			fromEventSub := msg.EventData["rewardType"] == "eventsub"
+			if !fromEventSub && app.eventsubClient != nil && app.eventsubClient.IsRunning() {
+				return
+			}
+
+			rewardDedupMu.Lock()
+			now := time.Now()
+			for k, t := range rewardDedup {
+				if now.Sub(t) > 30*time.Second {
+					delete(rewardDedup, k)
+				}
+			}
+
+			u := strings.ToLower(strings.TrimSpace(msg.User))
+			if u == "" {
+				u = strings.ToLower(strings.TrimSpace(msg.DisplayName))
+			}
+			txt := strings.TrimSpace(msg.Message)
+			rewardID := msg.EventData["rewardId"]
+
+			keyUserText := fmt.Sprintf("%s|%s", u, txt)
+			keyUserReward := fmt.Sprintf("%s|%s", u, rewardID)
+
+			if txt != "" {
+				if _, exists := rewardDedup[keyUserText]; exists {
+					rewardDedupMu.Unlock()
+					return
+				}
+				rewardDedup[keyUserText] = now
+			}
+			if rewardID != "" {
+				if _, exists := rewardDedup[keyUserReward]; exists {
+					rewardDedupMu.Unlock()
+					return
+				}
+				rewardDedup[keyUserReward] = now
+			}
+			rewardDedupMu.Unlock()
+		}
+
+		var badgesList []string
+		if msg.Badges != "" {
+			for _, b := range strings.Split(msg.Badges, ",") {
+				if tb := strings.TrimSpace(b); tb != "" {
+					badgesList = append(badgesList, tb)
+				}
+			}
+		}
+
 		wm := widget.WidgetMessage{
-			Type:      "message",
-			Author:    msg.DisplayName,
-			AvatarURL: widget.GetAvatarURL(msg.User),
-			Color:     msg.Color,
-			Text:      msg.Message,
-			Channel:   msg.Channel,
+			Type:       "message",
+			Author:     msg.DisplayName,
+			AvatarURL:  widget.GetAvatarURL(msg.User),
+			Color:      msg.Color,
+			Badges:     badgesList,
+			Text:       msg.Message,
+			EmoteMap:   msg.EmoteMap,
+			Channel:    msg.Channel,
+			Timestamp:  msg.Timestamp,
+			IsFirstMsg: msg.IsFirstMsg || (msg.EventData != nil && msg.EventData["firstMsg"] == "1") || msg.EventType == "intro",
 		}
 		if msg.IsEvent && msg.EventType == "reward" {
 			wm.Type = "reward"
@@ -67,6 +143,16 @@ func NewApp() *App {
 	// Wire IRC client → widget (all PRIVMSG, events, etc.)
 	app.twitchClient.SetMessageHandler(broadcastToWidget)
 
+	// Suppress IRC custom-reward-id duplicates when EventSub is running
+	app.twitchClient.SetRewardFilter(func(msg *twitch.ChatMessage) bool {
+		return app.eventsubClient != nil && app.eventsubClient.IsRunning()
+	})
+
+	// Broadcast background avatar updates immediately to OBS widget
+	widget.SetOnAvatarUpdated(func(login, avatarURL string) {
+		app.widgetServer.BroadcastAvatarUpdate(login, avatarURL)
+	})
+
 	// Wire EventSub client → Wails frontend + widget
 	app.eventsubClient = twitch.NewEventSubClient(func(msg *twitch.ChatMessage) {
 		if app.ctx != nil {
@@ -81,6 +167,10 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// Configure network proxy from saved settings
+	settings := config.LoadSettings()
+	proxy.Configure(settings)
 	a.twitchClient.SetContext(ctx)
 
 	// Fetch Twitch global badges in background
@@ -92,7 +182,7 @@ func (a *App) startup(ctx context.Context) {
 	}()
 
 	// Auto-connect channels immediately on application launch!
-	settings := config.LoadSettings()
+	settings = config.LoadSettings()
 	if settings.AlwaysOnTop {
 		runtime.WindowSetAlwaysOnTop(a.ctx, true)
 	}
@@ -122,8 +212,35 @@ func (a *App) startup(ctx context.Context) {
 		a.eventsubClient.AddChannel(ch)
 	}
 
+	// Connect media manager to widget server and start watcher
+	a.widgetServer.SetMediaManager(a.mediaManager)
+	a.mediaManager.Start()
+	a.widgetServer.BroadcastMusicConfig(map[string]interface{}{
+		"style":          settings.MusicStyle,
+		"accentColor":    settings.MusicAccentColor,
+		"showCover":      settings.MusicShowCover,
+		"showVisualizer": settings.MusicShowVisualizer,
+		"showArtist":     settings.MusicShowArtist,
+		"hideOnPause":    settings.MusicHideOnPause,
+		"pauseDelay":     settings.MusicPauseDelay,
+		"scale":          settings.MusicScale,
+		"bgOpacity":      settings.MusicBgOpacity,
+	})
+
 	// Start OBS widget HTTP server
 	a.widgetServer.Start()
+
+	// Start global hotkey listener for Game Mode (Ctrl+Shift+G / Ctrl+Shift+O) and TTS Skip (Esc / F8 / Ctrl+Shift+S)
+	overlay.StartGlobalHotkey(
+		func() {
+			a.ToggleGameMode()
+		},
+		func() {
+			if a.ctx != nil {
+				runtime.EventsEmit(a.ctx, "tts:skip")
+			}
+		},
+	)
 
 	// Fetch 7TV, BTTV, and FFZ emotes for joined channels
 	go func() {
@@ -136,6 +253,7 @@ func (a *App) startup(ctx context.Context) {
 
 // shutdown is called when the app closes
 func (a *App) shutdown(ctx context.Context) {
+	overlay.StopGlobalHotkey()
 	if a.oauthServer != nil {
 		a.oauthServer.Stop()
 	}
@@ -145,6 +263,9 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.ttsClient != nil {
 		a.ttsClient.Close()
+	}
+	if a.mediaManager != nil {
+		a.mediaManager.Stop()
 	}
 	if a.widgetServer != nil {
 		a.widgetServer.Stop()
@@ -228,14 +349,131 @@ func (a *App) GetSettings() config.AppSettings {
 
 // SaveSettings saves app settings to disk and emits update event
 func (a *App) SaveSettings(s config.AppSettings) error {
+	oldSettings := config.LoadSettings()
+	proxyChanged := (oldSettings.ProxyEnabled != s.ProxyEnabled ||
+		oldSettings.ProxyType != s.ProxyType ||
+		oldSettings.ProxyAddress != s.ProxyAddress ||
+		oldSettings.ProxyAuth != s.ProxyAuth ||
+		oldSettings.ProxyUser != s.ProxyUser ||
+		oldSettings.ProxyPassword != s.ProxyPassword)
+
 	err := config.SaveSettings(s)
-	if err == nil && a.ctx != nil {
-		runtime.WindowSetAlwaysOnTop(a.ctx, s.AlwaysOnTop)
-		runtime.EventsEmit(a.ctx, "settings:updated", s)
+	if err == nil {
+		if a.widgetServer != nil {
+			a.widgetServer.BroadcastMusicConfig(map[string]interface{}{
+				"style":          s.MusicStyle,
+				"accentColor":    s.MusicAccentColor,
+				"showCover":      s.MusicShowCover,
+				"showVisualizer": s.MusicShowVisualizer,
+				"showArtist":     s.MusicShowArtist,
+				"hideOnPause":    s.MusicHideOnPause,
+				"pauseDelay":     s.MusicPauseDelay,
+				"scale":          s.MusicScale,
+				"bgOpacity":      s.MusicBgOpacity,
+			})
+		}
+		if a.ctx != nil {
+			runtime.WindowSetAlwaysOnTop(a.ctx, s.AlwaysOnTop)
+			runtime.EventsEmit(a.ctx, "settings:updated", s)
+		}
+
+		if proxyChanged {
+			proxy.Configure(s)
+			go func() {
+				_ = a.twitchClient.ReconnectWithAuth()
+				a.eventsubClient.Reconnect()
+			}()
+		}
 	}
 	return err
 }
 
+// TestProxyConnection tests reaching Twitch API via specified proxy settings
+func (a *App) TestProxyConnection(proxyType, address string, auth bool, user, pass string) map[string]interface{} {
+	success, latency, msg := proxy.TestConnection(proxyType, address, auth, user, pass)
+	return map[string]interface{}{
+		"success": success,
+		"latency": latency,
+		"message": msg,
+	}
+}
+
+// OpenAndImportWireGuardConf opens a file dialog, parses the selected .conf file,
+// saves the WireGuard config to settings, and immediately starts the embedded tunnel.
+func (a *App) OpenAndImportWireGuardConf() map[string]interface{} {
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Выберите файл WireGuard (.conf)",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "WireGuard Config (*.conf)", Pattern: "*.conf"},
+			{DisplayName: "All Files (*.*)", Pattern: "*.*"},
+		},
+	})
+	if err != nil || path == "" {
+		return map[string]interface{}{"success": false, "error": "файл не выбран"}
+	}
+
+	info, err := proxy.ParseWireGuardConf(path)
+	if err != nil {
+		return map[string]interface{}{"success": false, "error": err.Error()}
+	}
+
+	// Persist WireGuard fields in settings so tunnel can be restored after restart
+	s := config.LoadSettings()
+	s.WireGuardPrivateKey = info.PrivateKey
+	s.WireGuardPublicKey = info.PublicKey
+	s.WireGuardAddress = info.Address
+	s.WireGuardDNS = info.DNS
+	s.WireGuardEndpoint = info.Endpoint
+	s.WireGuardAllowedIPs = info.AllowedIPs
+	s.ProxyType = "wireguard"
+	s.ProxyEnabled = true
+	_ = config.SaveSettings(s)
+
+	// Start the embedded tunnel immediately
+	proxy.ConfigureWithWireGuard(s, info)
+
+	return map[string]interface{}{
+		"success":    true,
+		"address":    info.Address,
+		"dns":        info.DNS,
+		"endpoint":   info.Endpoint,
+		"allowedIPs": info.AllowedIPs,
+		"tunnelActive": true,
+	}
+}
+
+// WireGuardTunnelStatus returns whether the embedded WireGuard tunnel is currently active.
+func (a *App) WireGuardTunnelStatus() map[string]interface{} {
+	s := config.LoadSettings()
+	return map[string]interface{}{
+		"active":   proxy.WireGuardTunnelActive(),
+		"endpoint": s.WireGuardEndpoint,
+		"address":  s.WireGuardAddress,
+	}
+}
+
+// ImportWireGuardConf parses a WireGuard .conf file and returns its fields
+// plus a suggested SOCKS5 address and a ready wireproxy config.
+func (a *App) ImportWireGuardConf(path string) map[string]interface{} {
+	info, err := proxy.ParseWireGuardConf(path)
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		}
+	}
+	return map[string]interface{}{
+		"success":         true,
+		"privateKey":      info.PrivateKey,
+		"address":         info.Address,
+		"dns":             info.DNS,
+		"publicKey":       info.PublicKey,
+		"endpoint":        info.Endpoint,
+		"allowedIPs":      info.AllowedIPs,
+		"suggestedSocks5": info.SuggestedSOCKS5,
+		"wireproxyConf":   proxy.GenerateWireproxyConf(info, ""),
+	}
+}
 // ResizeWindowForSettings handles window sizing when toggling settings
 func (a *App) ResizeWindowForSettings(openSettings bool) {
 	// Settings now perfectly fit the compact stream chat companion window
@@ -323,24 +561,65 @@ func (a *App) GetWidgetURL() string {
 	return fmt.Sprintf("http://localhost:%d/widget/chat", a.widgetServer.Port())
 }
 
-// GetWidgetThemes returns list of available theme names
-func (a *App) GetWidgetThemes() []string {
-	entries, err := os.ReadDir(a.widgetServer.ThemesDirectory())
-	if err != nil {
-		return []string{}
-	}
-	themes := []string{}
-	for _, e := range entries {
-		if e.IsDir() {
-			themes = append(themes, e.Name())
-		}
-	}
-	return themes
+// GetMusicWidgetURL returns the URL of the OBS Now Playing widget
+func (a *App) GetMusicWidgetURL() string {
+	return fmt.Sprintf("http://localhost:%d/widget/music", a.widgetServer.Port())
 }
 
-// OpenThemesDir opens the themes folder in Explorer/Finder
-func (a *App) OpenThemesDir() {
-	dir := a.widgetServer.ThemesDirectory()
+// GetCurrentTrack returns currently playing track info from Windows SMTC
+func (a *App) GetCurrentTrack() map[string]interface{} {
+	if a.mediaManager == nil {
+		return map[string]interface{}{"status": "stopped"}
+	}
+	t := a.mediaManager.CurrentTrack()
+	return map[string]interface{}{
+		"status":    t.Status,
+		"title":     t.Title,
+		"artist":    t.Artist,
+		"album":     t.Album,
+		"thumbnail": t.Thumbnail,
+		"source":    t.Source,
+	}
+}
+
+// SendTestMusicTrack triggers a test track on the music widget for OBS setup
+func (a *App) SendTestMusicTrack() map[string]interface{} {
+	testTrack := media.TrackInfo{
+		Status:    "playing",
+		Title:     "Never Gonna Give You Up",
+		Artist:    "Rick Astley",
+		Album:     "Whenever You Need Somebody",
+		Thumbnail: "",
+		Source:    "Spotify.exe",
+		Timestamp: time.Now().UnixMilli(),
+	}
+	if a.mediaManager != nil {
+		a.mediaManager.SetTrack(testTrack)
+	}
+	return map[string]interface{}{"success": true, "track": testTrack}
+}
+
+// SendTestChatMessage sends a simulated Twitch chat message to the OBS chat widget
+func (a *App) SendTestChatMessage() map[string]interface{} {
+	if a.widgetServer != nil {
+		a.widgetServer.Broadcast(widget.WidgetMessage{
+			Type:      "message",
+			Author:    "StreamHero",
+			AvatarURL: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+			Text:      "Тестовое сообщение для проверки оверлея чата в OBS Studio! ✨",
+			Color:     "#9146FF",
+			Badges:    []string{"broadcaster/1", "subscriber/12"},
+			Timestamp: time.Now().Format("15:04"),
+		})
+	}
+	return map[string]interface{}{"success": true}
+}
+
+
+// OpenMusicThemesDir opens the music themes directory in Explorer
+func (a *App) OpenMusicThemesDir() {
+	dir := filepath.Join(a.widgetServer.ThemesDirectory(), "music")
+	_ = os.MkdirAll(dir, 0755)
 	switch runtime_os.GOOS {
 	case "windows":
 		_ = exec.Command("explorer", dir).Start()
@@ -350,3 +629,113 @@ func (a *App) OpenThemesDir() {
 		_ = exec.Command("xdg-open", dir).Start()
 	}
 }
+
+// GetWidgetThemes returns list of available chat theme names (excluding music directory)
+func (a *App) GetWidgetThemes() []string {
+	themes := []string{}
+	chatDir := filepath.Join(a.widgetServer.ThemesDirectory(), "chat")
+	if entries, err := os.ReadDir(chatDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				themes = append(themes, e.Name())
+			}
+		}
+	}
+	if len(themes) == 0 {
+		if entries, err := os.ReadDir(a.widgetServer.ThemesDirectory()); err == nil {
+			for _, e := range entries {
+				if e.IsDir() && e.Name() != "music" && e.Name() != "chat" {
+					themes = append(themes, e.Name())
+				}
+			}
+		}
+	}
+	if len(themes) == 0 {
+		themes = append(themes, "default")
+	}
+	return themes
+}
+
+// GetMusicWidgetThemes returns list of available music theme names
+func (a *App) GetMusicWidgetThemes() []string {
+	musicDir := filepath.Join(a.widgetServer.ThemesDirectory(), "music")
+	entries, err := os.ReadDir(musicDir)
+	if err != nil {
+		return []string{"default"}
+	}
+	themes := []string{}
+	for _, e := range entries {
+		if e.IsDir() {
+			themes = append(themes, e.Name())
+		}
+	}
+	if len(themes) == 0 {
+		themes = append(themes, "default")
+	}
+	return themes
+}
+
+// OpenThemesDir opens the chat themes folder in Explorer/Finder
+func (a *App) OpenThemesDir() {
+	dir := filepath.Join(a.widgetServer.ThemesDirectory(), "chat")
+	_ = os.MkdirAll(dir, 0755)
+	switch runtime_os.GOOS {
+	case "windows":
+		_ = exec.Command("explorer", dir).Start()
+	case "darwin":
+		_ = exec.Command("open", dir).Start()
+	default:
+		_ = exec.Command("xdg-open", dir).Start()
+	}
+}
+
+// ToggleGameMode toggles Game/Overlay mode (transparent window, click-through, always-on-top).
+func (a *App) ToggleGameMode() bool {
+	a.gameModeMu.Lock()
+	if time.Since(a.lastToggleTime) < 400*time.Millisecond {
+		cur := a.isGameMode
+		a.gameModeMu.Unlock()
+		return cur
+	}
+	a.lastToggleTime = time.Now()
+	newVal := !a.isGameMode
+	a.isGameMode = newVal
+	a.gameModeMu.Unlock()
+
+	a.applyGameMode(newVal)
+	return newVal
+}
+
+// SetGameMode sets Game/Overlay mode explicitly.
+func (a *App) SetGameMode(enable bool) bool {
+	a.gameModeMu.Lock()
+	a.lastToggleTime = time.Now()
+	a.isGameMode = enable
+	a.gameModeMu.Unlock()
+
+	a.applyGameMode(enable)
+	return enable
+}
+
+// IsGameMode returns true if Game/Overlay mode is active.
+func (a *App) IsGameMode() bool {
+	a.gameModeMu.Lock()
+	defer a.gameModeMu.Unlock()
+	return a.isGameMode
+}
+
+func (a *App) applyGameMode(enable bool) {
+	if a.ctx != nil {
+		if enable {
+			runtime.WindowSetAlwaysOnTop(a.ctx, true)
+		} else {
+			settings := config.LoadSettings()
+			runtime.WindowSetAlwaysOnTop(a.ctx, settings.AlwaysOnTop)
+		}
+		runtime.EventsEmit(a.ctx, "gamemode:changed", enable)
+	}
+
+	hwnd := overlay.FindMainWindow()
+	overlay.SetClickThrough(hwnd, enable)
+}
+

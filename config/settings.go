@@ -56,6 +56,29 @@ type AppSettings struct {
 	FontFamily          string            `json:"fontFamily"`          // "Lato", "Inter", "Geist", "Roboto", "JetBrains Mono"
 	MessageSpacing      string            `json:"messageSpacing"`      // "compact", "default", "relaxed"
 	TextAlign           string            `json:"textAlign"`           // "left", "center", "right"
+	ProxyEnabled        bool              `json:"proxyEnabled"`        // use proxy for network requests
+	ProxyType           string            `json:"proxyType"`           // "http", "socks5", "warp"
+	ProxyAddress        string            `json:"proxyAddress"`        // host:port e.g. "127.0.0.1:7890" or "127.0.0.1:40000"
+	ProxyAuth           bool              `json:"proxyAuth"`           // require authentication
+	ProxyUser           string            `json:"proxyUser"`           // proxy username
+	ProxyPassword       string            `json:"proxyPassword"`       // proxy password
+	// WireGuard embedded tunnel config (populated on .conf import)
+	WireGuardPrivateKey string            `json:"wireGuardPrivateKey"` // WireGuard private key (base64)
+	WireGuardPublicKey  string            `json:"wireGuardPublicKey"`  // WireGuard peer public key (base64)
+	WireGuardAddress    string            `json:"wireGuardAddress"`    // tunnel local address e.g. "10.x.x.x/32"
+	WireGuardDNS        string            `json:"wireGuardDNS"`        // DNS server(s) inside tunnel
+	WireGuardEndpoint   string            `json:"wireGuardEndpoint"`   // peer endpoint "host:port"
+	WireGuardAllowedIPs string            `json:"wireGuardAllowedIPs"` // allowed IPs e.g. "0.0.0.0/0"
+	// Music widget configuration
+	MusicStyle          string            `json:"musicStyle"`          // "glass", "compact", "vinyl", "neon", "minimal"
+	MusicAccentColor    string            `json:"musicAccentColor"`    // "emerald", "blue", "purple", "pink", "amber", "white"
+	MusicShowCover      bool              `json:"musicShowCover"`      // show album art cover
+	MusicShowVisualizer bool              `json:"musicShowVisualizer"` // show audio visualizer bars
+	MusicShowArtist     bool              `json:"musicShowArtist"`     // show artist / album
+	MusicHideOnPause    bool              `json:"musicHideOnPause"`    // hide widget when paused
+	MusicPauseDelay     int               `json:"musicPauseDelay"`     // seconds before fading out on pause
+	MusicScale          int               `json:"musicScale"`          // scale percent (e.g. 100)
+	MusicBgOpacity      int               `json:"musicBgOpacity"`      // background opacity 0-100 (default 85)
 }
 
 func DefaultSettings() AppSettings {
@@ -103,6 +126,21 @@ func DefaultSettings() AppSettings {
 		FontFamily:          "Lato",
 		MessageSpacing:      "default",
 		TextAlign:           "left",
+		ProxyEnabled:        false,
+		ProxyType:           "http",
+		ProxyAddress:        "127.0.0.1:7890",
+		ProxyAuth:           false,
+		ProxyUser:           "",
+		ProxyPassword:       "",
+		MusicStyle:          "glass",
+		MusicAccentColor:    "emerald",
+		MusicShowCover:      true,
+		MusicShowVisualizer: true,
+		MusicShowArtist:     true,
+		MusicHideOnPause:    true,
+		MusicPauseDelay:     3,
+		MusicScale:          100,
+		MusicBgOpacity:      85,
 	}
 }
 
@@ -284,6 +322,62 @@ func LoadSettings() AppSettings {
 				if val != "" {
 					s.TextAlign = val
 				}
+			case "proxyEnabled":
+				s.ProxyEnabled = (val == "true")
+			case "proxyType":
+				if val != "" {
+					s.ProxyType = val
+				}
+			case "proxyAddress":
+				if val != "" {
+					s.ProxyAddress = val
+				}
+			case "proxyAuth":
+				s.ProxyAuth = (val == "true")
+			case "proxyUser":
+				s.ProxyUser = val
+			case "proxyPassword":
+				s.ProxyPassword = val
+			case "wireGuardPrivateKey":
+				s.WireGuardPrivateKey = val
+			case "wireGuardPublicKey":
+				s.WireGuardPublicKey = val
+			case "wireGuardAddress":
+				s.WireGuardAddress = val
+			case "wireGuardDNS":
+				s.WireGuardDNS = val
+			case "wireGuardEndpoint":
+				s.WireGuardEndpoint = val
+			case "wireGuardAllowedIPs":
+				s.WireGuardAllowedIPs = val
+			case "musicStyle":
+				if val != "" {
+					s.MusicStyle = val
+				}
+			case "musicAccentColor":
+				if val != "" {
+					s.MusicAccentColor = val
+				}
+			case "musicShowCover":
+				s.MusicShowCover = (val == "true")
+			case "musicShowVisualizer":
+				s.MusicShowVisualizer = (val == "true")
+			case "musicShowArtist":
+				s.MusicShowArtist = (val == "true")
+			case "musicHideOnPause":
+				s.MusicHideOnPause = (val == "true")
+			case "musicPauseDelay":
+				if v, err := strconv.Atoi(val); err == nil && v >= 0 {
+					s.MusicPauseDelay = v
+				}
+			case "musicScale":
+				if v, err := strconv.Atoi(val); err == nil && v >= 50 {
+					s.MusicScale = v
+				}
+			case "musicBgOpacity":
+				if v, err := strconv.Atoi(val); err == nil && v >= 0 && v <= 100 {
+					s.MusicBgOpacity = v
+				}
 			}
 		}
 	}
@@ -359,6 +453,27 @@ func SaveSettings(s AppSettings) error {
 		"fontFamily":          s.FontFamily,
 		"messageSpacing":      s.MessageSpacing,
 		"textAlign":           s.TextAlign,
+		"proxyEnabled":        strconv.FormatBool(s.ProxyEnabled),
+		"proxyType":           s.ProxyType,
+		"proxyAddress":        s.ProxyAddress,
+		"proxyAuth":           strconv.FormatBool(s.ProxyAuth),
+		"proxyUser":           s.ProxyUser,
+		"proxyPassword":       s.ProxyPassword,
+		"wireGuardPrivateKey": s.WireGuardPrivateKey,
+		"wireGuardPublicKey":  s.WireGuardPublicKey,
+		"wireGuardAddress":    s.WireGuardAddress,
+		"wireGuardDNS":        s.WireGuardDNS,
+		"wireGuardEndpoint":   s.WireGuardEndpoint,
+		"wireGuardAllowedIPs": s.WireGuardAllowedIPs,
+		"musicStyle":          s.MusicStyle,
+		"musicAccentColor":    s.MusicAccentColor,
+		"musicShowCover":      strconv.FormatBool(s.MusicShowCover),
+		"musicShowVisualizer": strconv.FormatBool(s.MusicShowVisualizer),
+		"musicShowArtist":     strconv.FormatBool(s.MusicShowArtist),
+		"musicHideOnPause":    strconv.FormatBool(s.MusicHideOnPause),
+		"musicPauseDelay":     strconv.Itoa(s.MusicPauseDelay),
+		"musicScale":          strconv.Itoa(s.MusicScale),
+		"musicBgOpacity":      strconv.Itoa(s.MusicBgOpacity),
 	}
 
 	for k, v := range pairs {

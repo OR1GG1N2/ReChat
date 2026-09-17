@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now Playing - Vinyl Record</title>
+  <link rel="stylesheet" href="/widget/music/assets/vinyl/style.css">
+</head>
+<body>
+  <div id="widget-container" class="vinyl-widget hidden">
+    <!-- Ambient Backdrop Aura -->
+    <div class="vinyl-ambient-glow" id="ambient-glow"></div>
+
+    <div class="vinyl-card-body">
+      <!-- Vinyl Player Interactive Unit -->
+      <div class="vinyl-player-rig">
+        <!-- Vinyl Record Disc (slides out and spins) -->
+        <div class="vinyl-disc-wrap" id="disc-wrap">
+          <div class="vinyl-disc" id="disc">
+            <!-- Vinyl Groove Rings -->
+            <div class="groove-layer"></div>
+            <div class="light-reflection"></div>
+            <!-- Center Label with mini cover -->
+            <div class="disc-label">
+              <img id="disc-label-img" src="" alt="Disc Art" class="disc-label-cover" style="display:none;" />
+              <div id="disc-label-fallback" class="disc-label-fallback">
+                <span>♫</span>
+              </div>
+              <div class="spindle-hole"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Album Sleeve Jacket -->
+        <div class="vinyl-sleeve" id="sleeve">
+          <img id="cover-img" src="" alt="Album Jacket" class="sleeve-cover" style="display:none;" />
+          <div id="cover-fallback" class="sleeve-fallback">
+            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M9 18V5l12-2v13"></path>
+              <circle cx="6" cy="18" r="3"></circle>
+              <circle cx="18" cy="16" r="3"></circle>
+            </svg>
+          </div>
+          <div class="sleeve-gloss"></div>
+          <div class="sleeve-lip"></div>
+        </div>
+      </div>
+
+      <!-- Track Information & Visualizer -->
+      <div class="vinyl-info-panel">
+        <!-- Now Playing Header -->
+        <div class="vinyl-badge-row">
+          <span class="vinyl-badge">
+            <span class="pulse-dot"></span>
+            <span id="badge-text">NOW PLAYING</span>
+          </span>
+          <span class="vinyl-source-badge" id="source-badge">SPOTIFY</span>
+        </div>
+
+        <!-- Title -->
+        <div class="vinyl-title-box">
+          <div class="vinyl-title" id="track-title">Ожидание трека...</div>
+        </div>
+
+        <!-- Artist -->
+        <div class="vinyl-artist" id="track-artist">—</div>
+
+        <!-- Waveform Visualizer -->
+        <div class="vinyl-waveform" id="waveform">
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('widget-container');
+    const disc = document.getElementById('disc');
+    const discWrap = document.getElementById('disc-wrap');
+    const coverImg = document.getElementById('cover-img');
+    const coverFallback = document.getElementById('cover-fallback');
+    const discLabelImg = document.getElementById('disc-label-img');
+    const discLabelFallback = document.getElementById('disc-label-fallback');
+    const titleEl = document.getElementById('track-title');
+    const artistEl = document.getElementById('track-artist');
+    const sourceBadge = document.getElementById('source-badge');
+    const badgeText = document.getElementById('badge-text');
+    const waveform = document.getElementById('waveform');
+
+    let currentTrackKey = '';
+    let hideTimeout = null;
+
+    let config = {
+      scale: 100,
+      showCover: true,
+      showArtist: true,
+      showVisualizer: true,
+      hideOnPause: true,
+      pauseDelay: 3,
+      accentColor: 'emerald'
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+    if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+
+    const ACCENTS = {
+      emerald: '#10B981',
+      purple:  '#9146FF',
+      blue:    '#3B82F6',
+      pink:    '#EC4899',
+      amber:   '#F59E0B',
+      white:   '#F3F4F6'
+    };
+
+    function applyConfig(cfg) {
+      if (!cfg) return;
+      config = { ...config, ...cfg };
+      if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+      if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+
+      document.documentElement.style.setProperty('--vinyl-scale', (config.scale || 100) / 100);
+      const acc = ACCENTS[config.accentColor] || ACCENTS.emerald;
+      document.documentElement.style.setProperty('--accent-color', acc);
+
+      if (waveform) waveform.style.display = config.showVisualizer !== false ? 'flex' : 'none';
+      if (artistEl) artistEl.style.display = config.showArtist !== false ? 'block' : 'none';
+    }
+
+    applyConfig(config);
+
+    function updateTrack(data) {
+      if (!data) return;
+      const isPlaying = data.status === 'playing';
+      const hasTitle = data.title && data.title.trim().length > 0;
+
+      if (!hasTitle || (!isPlaying && data.status !== 'paused')) {
+        hideWidget();
+        return;
+      }
+
+      const trackKey = (data.title || '') + '|' + (data.artist || '');
+      const isNew = trackKey !== currentTrackKey;
+      currentTrackKey = trackKey;
+
+      titleEl.textContent = data.title || 'Без названия';
+      artistEl.textContent = data.artist || (data.album || 'Неизвестный исполнитель');
+      if (sourceBadge) {
+        sourceBadge.textContent = (data.source ? data.source.replace('.exe', '') : 'MUSIC').toUpperCase();
+      }
+
+      // Marquee
+      titleEl.classList.remove('marquee');
+      if (titleEl.scrollWidth > titleEl.parentElement.clientWidth + 4) {
+        titleEl.classList.add('marquee');
+      }
+
+      // Images
+      if (data.thumbnail && data.thumbnail.length > 50) {
+        coverImg.src = data.thumbnail;
+        coverImg.style.display = 'block';
+        coverFallback.style.display = 'none';
+
+        discLabelImg.src = data.thumbnail;
+        discLabelImg.style.display = 'block';
+        discLabelFallback.style.display = 'none';
+      } else {
+        coverImg.style.display = 'none';
+        coverFallback.style.display = 'flex';
+
+        discLabelImg.style.display = 'none';
+        discLabelFallback.style.display = 'flex';
+      }
+
+      if (isPlaying) {
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+        container.classList.remove('paused');
+        badgeText.textContent = 'NOW PLAYING';
+        showWidget(isNew);
+      } else {
+        container.classList.add('paused');
+        badgeText.textContent = 'PAUSED';
+        if (config.hideOnPause) {
+          if (!hideTimeout) {
+            const delay = Math.max(config.pauseDelay || 3, 0) * 1000;
+            hideTimeout = setTimeout(hideWidget, delay);
+          }
+        }
+      }
+    }
+
+    function showWidget(animate) {
+      container.classList.remove('hidden');
+      if (animate) {
+        container.classList.remove('animate-in');
+        void container.offsetWidth;
+        container.classList.add('animate-in');
+      }
+    }
+
+    function hideWidget() {
+      container.classList.add('hidden');
+    }
+
+    function connectSSE() {
+      const es = new EventSource('/widget/music/events');
+      es.addEventListener('track', (e) => {
+        try { updateTrack(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('config', (e) => {
+        try { applyConfig(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('reload', () => window.location.reload());
+      es.onerror = () => {
+        setTimeout(connectSSE, 3000);
+        es.close();
+      };
+    }
+
+    connectSSE();
+  </script>
+</body>
+</html>

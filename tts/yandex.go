@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"ReChat/proxy"
+
 	"github.com/gorilla/websocket"
 )
 
@@ -152,10 +154,8 @@ func (y *YandexTTS) Speak(text, voice string) (string, error) {
 
 	y.ssid = generateUUID()
 
-	// Connect WebSocket with custom headers
-	dialer := websocket.Dialer{
-		HandshakeTimeout: 15 * time.Second,
-	}
+	// Connect WebSocket with proxy support
+	dialer := proxy.GetWebSocketDialer()
 
 	header := http.Header{}
 	header.Set("User-Agent", "WebSocket++/0.8.2")
@@ -170,7 +170,17 @@ func (y *YandexTTS) Speak(text, voice string) (string, error) {
 
 	conn, _, err := dialer.Dial(wsEndpoint, header)
 	if err != nil {
-		return "", fmt.Errorf("websocket connect failed: %w", err)
+		// If dialer failed (e.g. proxy issue), attempt direct connection fallback
+		log.Printf("[TTS] Dial via configured dialer failed (%v), attempting direct connection fallback", err)
+		directDialer := &websocket.Dialer{
+			HandshakeTimeout: 10 * time.Second,
+		}
+		var fallbackErr error
+		conn, _, fallbackErr = directDialer.Dial(wsEndpoint, header)
+		if fallbackErr != nil {
+			return "", fmt.Errorf("websocket connect failed (primary: %v, fallback: %w)", err, fallbackErr)
+		}
+		log.Printf("[TTS] Connected directly to Yandex TTS as fallback")
 	}
 	defer conn.Close()
 

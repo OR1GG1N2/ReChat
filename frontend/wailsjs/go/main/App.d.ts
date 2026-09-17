@@ -6,11 +6,17 @@ export function ConnectChannel(arg1:string):Promise<void>;
 
 export function DisconnectChannel():Promise<void>;
 
+export function GetCurrentTrack():Promise<Record<string, any>>;
+
 export function GetEmotes():Promise<Record<string, string>>;
 
 export function GetGlobalBadges():Promise<Record<string, string>>;
 
 export function GetJoinedChannels():Promise<Array<string>>;
+
+export function GetMusicWidgetThemes():Promise<Array<string>>;
+
+export function GetMusicWidgetURL():Promise<string>;
 
 export function GetSettings():Promise<config.AppSettings>;
 
@@ -20,11 +26,19 @@ export function GetWidgetThemes():Promise<Array<string>>;
 
 export function GetWidgetURL():Promise<string>;
 
+export function ImportWireGuardConf(arg1:string):Promise<Record<string, any>>;
+
+export function IsGameMode():Promise<boolean>;
+
 export function JoinChannel(arg1:string):Promise<void>;
 
 export function LeaveChannel(arg1:string):Promise<void>;
 
 export function LogoutTwitch():Promise<void>;
+
+export function OpenAndImportWireGuardConf():Promise<Record<string, any>>;
+
+export function OpenMusicThemesDir():Promise<void>;
 
 export function OpenThemesDir():Promise<void>;
 
@@ -34,6 +48,18 @@ export function SaveSettings(arg1:config.AppSettings):Promise<void>;
 
 export function SendMessage(arg1:string,arg2:string):Promise<void>;
 
+export function SendTestChatMessage():Promise<Record<string, any>>;
+
+export function SendTestMusicTrack():Promise<Record<string, any>>;
+
+export function SetGameMode(arg1:boolean):Promise<boolean>;
+
 export function SpeakText(arg1:string,arg2:string):Promise<string>;
 
 export function StartTwitchAuth():Promise<void>;
+
+export function TestProxyConnection(arg1:string,arg2:string,arg3:boolean,arg4:string,arg5:string):Promise<Record<string, any>>;
+
+export function ToggleGameMode():Promise<boolean>;
+
+export function WireGuardTunnelStatus():Promise<Record<string, any>>;

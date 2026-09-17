@@ -18,27 +18,37 @@ func ThemesDir() string {
 	return filepath.Join(filepath.Dir(exe), "themes")
 }
 
-// EnsureDefaultTheme creates the default theme directory if it doesn't exist.
+// EnsureDefaultTheme creates the default chat theme directory in themes/chat/default.
 func EnsureDefaultTheme(themesDir string) error {
-	defaultDir := filepath.Join(themesDir, "default")
-	if err := os.MkdirAll(defaultDir, 0755); err != nil {
+	chatDefaultDir := filepath.Join(themesDir, "chat", "default")
+	if err := os.MkdirAll(chatDefaultDir, 0755); err != nil {
 		return err
 	}
 
-	// Write index.html only if it doesn't exist
-	htmlPath := filepath.Join(defaultDir, "index.html")
+	// Write index.html in themes/chat/default
+	htmlPath := filepath.Join(chatDefaultDir, "index.html")
 	if _, err := os.Stat(htmlPath); os.IsNotExist(err) {
 		if err := os.WriteFile(htmlPath, []byte(defaultHTML), 0644); err != nil {
 			return err
 		}
 	}
 
-	// Write style.css only if it doesn't exist
-	cssPath := filepath.Join(defaultDir, "style.css")
+	// Write style.css in themes/chat/default
+	cssPath := filepath.Join(chatDefaultDir, "style.css")
 	if _, err := os.Stat(cssPath); os.IsNotExist(err) {
 		if err := os.WriteFile(cssPath, []byte(defaultCSS), 0644); err != nil {
 			return err
 		}
+	}
+
+	// Also maintain root default for backward compatibility if needed
+	rootDefaultDir := filepath.Join(themesDir, "default")
+	_ = os.MkdirAll(rootDefaultDir, 0755)
+	if _, err := os.Stat(filepath.Join(rootDefaultDir, "index.html")); os.IsNotExist(err) {
+		_ = os.WriteFile(filepath.Join(rootDefaultDir, "index.html"), []byte(defaultHTML), 0644)
+	}
+	if _, err := os.Stat(filepath.Join(rootDefaultDir, "style.css")); os.IsNotExist(err) {
+		_ = os.WriteFile(filepath.Join(rootDefaultDir, "style.css"), []byte(defaultCSS), 0644)
 	}
 
 	return nil
@@ -111,11 +121,40 @@ const defaultHTML = `<!DOCTYPE html>
     const MAX_MESSAGES = 40;
 
     const es = new EventSource('http://localhost:3500/widget/events');
+    const recentRewards = new Set();
+
     es.addEventListener('message', e => addMessage(JSON.parse(e.data)));
     es.addEventListener('reload', () => location.reload());
+    es.addEventListener('avatar_update', e => {
+      try {
+        const data = JSON.parse(e.data);
+        if (!data.user || !data.avatarUrl) return;
+        const target = data.user.toLowerCase();
+        document.querySelectorAll('[data-author="' + target + '"]').forEach(row => {
+          const avatarContainer = row.querySelector('.msg-avatar, .reward-avatar');
+          if (avatarContainer && !avatarContainer.querySelector('img')) {
+            const img = document.createElement('img');
+            img.src = data.avatarUrl;
+            img.alt = '';
+            img.loading = 'lazy';
+            img.onerror = () => img.remove();
+            avatarContainer.innerHTML = '';
+            avatarContainer.appendChild(img);
+          }
+        });
+      } catch (err) {}
+    });
 
     function addMessage(msg) {
+      if (msg.type === 'reward') {
+        const dedupKey = (msg.author || '').toLowerCase() + ':' + (msg.userInput || '');
+        if (recentRewards.has(dedupKey)) return;
+        recentRewards.add(dedupKey);
+        setTimeout(() => recentRewards.delete(dedupKey), 15000);
+      }
+
       const el = document.createElement('div');
+      el.setAttribute('data-author', (msg.author || '').toLowerCase());
 
       if (msg.type === 'reward') {
         el.className = 'row reward-row';

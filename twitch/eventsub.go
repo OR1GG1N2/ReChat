@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"ReChat/config"
+	"ReChat/proxy"
 
 	"github.com/gorilla/websocket"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -141,6 +142,12 @@ func (e *EventSubClient) Stop() {
 	}
 }
 
+func (e *EventSubClient) IsRunning() bool {
+	e.connMu.Lock()
+	defer e.connMu.Unlock()
+	return e.isRunning
+}
+
 func (e *EventSubClient) AddChannel(channel string) {
 	ch := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(channel), "#"))
 	if ch == "" {
@@ -194,7 +201,7 @@ func (e *EventSubClient) runLoop() {
 }
 
 func (e *EventSubClient) connectAndListen() error {
-	dialer := websocket.DefaultDialer
+	dialer := proxy.GetWebSocketDialer()
 	conn, _, err := dialer.Dial(config.TwitchEventSubWebSocketURL, nil)
 	if err != nil {
 		return fmt.Errorf("eventsub dial failed: %w", err)
@@ -480,4 +487,12 @@ func (e *EventSubClient) resolveUserID(channelName string) (string, error) {
 	e.userCacheMu.Unlock()
 
 	return id, nil
+}
+
+func (e *EventSubClient) Reconnect() {
+	e.connMu.Lock()
+	if e.conn != nil {
+		_ = e.conn.Close()
+	}
+	e.connMu.Unlock()
 }

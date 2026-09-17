@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReChat Widget</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/widget/assets/default/style.css">
+</head>
+<body>
+  <div id="chat"></div>
+  <script>
+    const CHAT = document.getElementById('chat');
+    const MAX_MESSAGES = 40;
+
+    const STATIC_BADGES = {
+      'broadcaster/1': 'https://static-cdn.jtvnw.net/badges/v1/5527c58c-fb7d-422d-b71b-f309dcb85cc1/1',
+      'moderator/1': 'https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/1',
+      'vip/1': 'https://static-cdn.jtvnw.net/badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/1',
+      'subscriber/0': 'https://static-cdn.jtvnw.net/badges/v1/5d9f2208-5dd8-11e7-8513-2aa4b878e69d/1',
+      'subscriber/1': 'https://static-cdn.jtvnw.net/badges/v1/5d9f2208-5dd8-11e7-8513-2aa4b878e69d/1',
+      'partner/1': 'https://static-cdn.jtvnw.net/badges/v1/d12a2e27-16f6-41d0-ab77-b780518f00a3/1',
+      'premium/1': 'https://static-cdn.jtvnw.net/badges/v1/bbbe0db0-a998-4c63-8bc5-eb07a378127a/1',
+      'turbo/1': 'https://static-cdn.jtvnw.net/badges/v1/bd444ec6-8f34-4bf9-abac-f6c23f00388c/1'
+    };
+
+    const COMMON_EMOTES = {
+      'Kappa': 'https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/1.0',
+      'LUL': 'https://static-cdn.jtvnw.net/emoticons/v2/425618/default/dark/1.0',
+      'PogChamp': 'https://static-cdn.jtvnw.net/emoticons/v2/305954156/default/dark/1.0',
+      'BibleThump': 'https://static-cdn.jtvnw.net/emoticons/v2/86/default/dark/1.0',
+      'Kreygasm': 'https://static-cdn.jtvnw.net/emoticons/v2/41/default/dark/1.0',
+      'KEKW': 'https://cdn.betterttv.net/emote/5e9c6c187e090362f8b0b9e8/1x.webp',
+      'monkaS': 'https://cdn.betterttv.net/emote/56e9f494fff3cc5c35e5287e/1x.webp',
+      'catJAM': 'https://cdn.betterttv.net/emote/5f1b0186cf6d2144653d2970/1x.webp',
+      'PepeLaugh': 'https://cdn.betterttv.net/emote/5c548025009a2a73211870be/1x.webp'
+    };
+
+    let globalBadges = { ...STATIC_BADGES };
+    let globalEmotes = { ...COMMON_EMOTES };
+
+    fetch('/widget/badges').then(r => r.json()).then(d => { if (d) globalBadges = { ...globalBadges, ...d }; }).catch(() => {});
+    fetch('/widget/emotes').then(r => r.json()).then(d => { if (d) globalEmotes = { ...globalEmotes, ...d }; }).catch(() => {});
+
+    function connectSSE() {
+      const es = new EventSource('/widget/events');
+      const recentRewards = new Set();
+
+      es.addEventListener('message', e => addMessage(JSON.parse(e.data)));
+      es.addEventListener('reload', () => location.reload());
+      es.addEventListener('avatar_update', e => {
+        try {
+          const data = JSON.parse(e.data);
+          if (!data.user || !data.avatarUrl) return;
+          const target = data.user.toLowerCase();
+          document.querySelectorAll('[data-author="' + target + '"]').forEach(row => {
+            const avatarContainer = row.querySelector('.msg-avatar, .reward-avatar');
+            if (avatarContainer && !avatarContainer.querySelector('img')) {
+              const img = document.createElement('img');
+              img.src = data.avatarUrl;
+              img.alt = '';
+              img.loading = 'lazy';
+              img.onerror = () => img.remove();
+              avatarContainer.innerHTML = '';
+              avatarContainer.appendChild(img);
+            }
+          });
+        } catch (err) {}
+      });
+
+      es.onerror = () => {
+        es.close();
+        setTimeout(connectSSE, 3000);
+      };
+    }
+
+    connectSSE();
+
+    function addMessage(msg) {
+      if (msg.type === 'reward') {
+        const dedupKey = (msg.author || '').toLowerCase() + ':' + (msg.userInput || '');
+        if (recentRewards.has(dedupKey)) return;
+        recentRewards.add(dedupKey);
+        setTimeout(() => recentRewards.delete(dedupKey), 15000);
+      }
+
+      const el = document.createElement('div');
+      el.setAttribute('data-author', (msg.author || '').toLowerCase());
+
+      const renderedText = parseEmotes(msg.text || '', msg.emoteMap);
+
+      if (msg.type === 'reward') {
+        el.className = 'row reward-row';
+        const costHtml = msg.cost
+          ? '<span class="reward-cost">' + formatNum(msg.cost) + '</span>'
+          : '';
+        const inputHtml = msg.userInput
+          ? '<div class="reward-input">"' + parseEmotes(msg.userInput, msg.emoteMap) + '"</div>'
+          : '';
+        el.innerHTML =
+          '<div class="reward-card">' +
+            '<div class="reward-header">' +
+              '<div class="reward-crown">' +
+                '<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor">' +
+                  '<path d="M2 14l2-8 4 4 2-6 2 6 4-4 2 8H2z"/>' +
+                '</svg>' +
+              '</div>' +
+              '<span class="reward-title">' + escHtml(msg.rewardTitle || 'Награда') + '</span>' +
+              costHtml +
+            '</div>' +
+            '<div class="reward-meta">' +
+              renderAvatar(msg.author, msg.avatarUrl, 'reward-avatar') +
+              '<span class="reward-author">' + escHtml(msg.author) + '</span>' +
+              '<span class="reward-verb">использовал награду</span>' +
+            '</div>' +
+            inputHtml +
+          '</div>';
+      } else {
+        const color = msg.color || '#a9b7d1';
+        el.className = 'row message-row';
+        el.innerHTML =
+          '<div class="msg-card">' +
+            renderAvatar(msg.author, msg.avatarUrl, 'msg-avatar') +
+            '<div class="msg-body">' +
+              '<span class="msg-badges">' + renderBadges(msg.badges, msg.badgeUrls) + '</span>' +
+              '<span class="msg-author" style="color:' + color + '">' + escHtml(msg.author) + '</span>' +
+              '<span class="msg-text">' + renderedText + '</span>' +
+            '</div>' +
+          '</div>';
+      }
+
+      CHAT.appendChild(el);
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('visible')));
+
+      while (CHAT.children.length > MAX_MESSAGES) {
+        const old = CHAT.firstChild;
+        old.classList.add('removing');
+        setTimeout(() => { if (old.parentNode) old.remove(); }, 300);
+        break;
+      }
+    }
+
+    function renderBadges(badges, badgeUrls) {
+      if ((!badges || badges.length === 0) && (!badgeUrls || badgeUrls.length === 0)) return '';
+      const bList = badges || [];
+      const uList = badgeUrls || [];
+      let html = '';
+
+      if (uList.length > 0) {
+        for (let i = 0; i < uList.length; i++) {
+          html += '<img class="badge-icon" src="' + escHtml(uList[i]) + '" alt="" onerror="this.remove()" />';
+        }
+        return html;
+      }
+
+      for (let i = 0; i < bList.length; i++) {
+        const tag = bList[i];
+        const [name] = tag.split('/');
+        const url = globalBadges[tag] || STATIC_BADGES[tag] || globalBadges[name + '/1'] || STATIC_BADGES[name + '/1'];
+        if (url) {
+          html += '<img class="badge-icon" src="' + escHtml(url) + '" alt="" onerror="this.remove()" />';
+        }
+      }
+      return html;
+    }
+
+    function parseEmotes(text, msgEmotes) {
+      if (!text) return '';
+      const active = { ...COMMON_EMOTES, ...globalEmotes, ...(msgEmotes || {}) };
+      return text.split(/\s+/).map(w => {
+        if (!w) return '';
+        let clean = w;
+        let punct = '';
+        const m = w.match(/^(.+?)([.,!?;:)]+)$/);
+        if (m) { clean = m[1]; punct = m[2]; }
+        const url = active[clean] || active[w];
+        if (url) {
+          let src = url;
+          if (src.startsWith('//')) src = 'https:' + src;
+          return '<img class="chat-emote" src="' + escHtml(src) + '" alt="' + escHtml(clean) + '" />' + escHtml(punct);
+        }
+        return escHtml(w);
+      }).join(' ');
+    }
+
+    function renderAvatar(arg1, arg2, arg3) {
+      let author = arg1 || '';
+      let avatarUrl = arg2 || '';
+      let className = arg3 || 'msg-avatar';
+      const bg = avatarColor(author);
+      if (avatarUrl) {
+        return '<div class="' + className + '" style="background:' + bg + '">' +
+          '<img src="' + escHtml(avatarUrl) + '" alt="" loading="lazy" onerror="this.remove()" />' +
+        '</div>';
+      }
+      return '<div class="' + className + '" style="background:' + bg + '">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(255,255,255,0.65)"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>' +
+      '</div>';
+    }
+
+    function escHtml(s) {
+      return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function formatNum(n) {
+      return n >= 1000 ? (n/1000).toFixed(n%1000===0?0:1)+'K' : String(n);
+    }
+    function avatarColor(name) {
+      const p = ['#6366f1','#8b5cf6','#ec4899','#14b8a6','#f59e0b','#3b82f6','#10b981'];
+      let h = 0;
+      for (let i = 0; i < (name||'').length; i++) h = (h*31 + name.charCodeAt(i)) & 0xffffffff;
+      return p[Math.abs(h) % p.length];
+    }
+  </script>
+</body>
+</html>

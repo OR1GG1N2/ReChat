@@ -1,0 +1,487 @@
+/* ============================================
+   Windows 98 Retro Music Player Theme
+   Inspired by 6K Labs Amuse & classic Win98
+   ============================================ */
+
+:root {
+  --win98-scale: 1;
+  --win98-bg: #c0c0c0;
+  --win98-dark-shadow: #000000;
+  --win98-shadow: #808080;
+  --win98-light: #dfdfdf;
+  --win98-white: #ffffff;
+  --win98-blue-dark: #000080;
+  --win98-blue-light: #1084d0;
+  --lcd-bg: #001a08;
+  --lcd-glow: #00ff66;
+  --lcd-dim: #00772e;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: transparent !important;
+  font-family: 'MS Sans Serif', Tahoma, 'Segoe UI', sans-serif;
+  overflow: hidden;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 100vh;
+}
+
+/* Base Window Container */
+.win98-window {
+  position: relative;
+  background-color: var(--win98-bg);
+  width: 380px;
+  transform: scale(var(--win98-scale));
+  transform-origin: top left;
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow:
+    inset 1px 1px var(--win98-white),
+    inset -1px -1px var(--win98-dark-shadow),
+    inset 2px 2px var(--win98-light),
+    inset -2px -2px var(--win98-shadow),
+    0 12px 28px rgba(0, 0, 0, 0.65);
+  padding: 3px;
+  opacity: 1;
+}
+
+.win98-window.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(var(--win98-scale)) translateY(14px);
+}
+
+.win98-window.animate-pop {
+  animation: win98Pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes win98Pop {
+  0% {
+    opacity: 0;
+    transform: scale(calc(var(--win98-scale) * 0.95)) translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(var(--win98-scale)) translateY(0);
+  }
+}
+
+/* Title Bar */
+.win98-titlebar {
+  background: linear-gradient(90deg, var(--win98-blue-dark), var(--win98-blue-light));
+  height: 22px;
+  padding: 2px 3px 2px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #ffffff;
+  user-select: none;
+}
+
+.win98-title-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.win98-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.win98-title-text {
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  text-shadow: 1px 1px #000000;
+}
+
+.win98-controls {
+  display: flex;
+  gap: 2px;
+}
+
+.win98-btn {
+  width: 16px;
+  height: 14px;
+  background-color: var(--win98-bg);
+  border: none;
+  font-size: 9px;
+  font-weight: bold;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  box-shadow:
+    inset 1px 1px var(--win98-white),
+    inset -1px -1px var(--win98-dark-shadow),
+    inset 2px 2px var(--win98-light),
+    inset -2px -2px var(--win98-shadow);
+}
+
+.win98-btn:active {
+  box-shadow:
+    inset 1px 1px var(--win98-dark-shadow),
+    inset -1px -1px var(--win98-white);
+  padding: 1px 0 0 1px;
+}
+
+.win98-close {
+  font-size: 8px;
+}
+
+/* Menu Bar */
+.win98-menubar {
+  display: flex;
+  gap: 12px;
+  padding: 2px 6px 3px 6px;
+  font-size: 11px;
+  color: #000000;
+  border-bottom: 1px solid var(--win98-shadow);
+  user-select: none;
+}
+
+.win98-menu-item {
+  cursor: default;
+}
+
+/* Main Content Area */
+.win98-content {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.win98-top-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* Album Cover Frame */
+.win98-cover-frame {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  background-color: #000000;
+  box-shadow:
+    inset 1px 1px var(--win98-shadow),
+    inset -1px -1px var(--win98-white),
+    inset 2px 2px var(--win98-dark-shadow),
+    inset -2px -2px var(--win98-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.win98-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: auto;
+}
+
+.win98-cover-fallback {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, #2a2a2a, #111111);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.disc-icon {
+  font-size: 32px;
+  filter: drop-shadow(0 0 4px rgba(255,255,255,0.2));
+  animation: spinCover 10s linear infinite;
+}
+
+.paused .disc-icon {
+  animation-play-state: paused;
+}
+
+@keyframes spinCover {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* LCD Display */
+.win98-info-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.win98-lcd-display {
+  background-color: var(--lcd-bg);
+  box-shadow:
+    inset 1px 1px var(--win98-dark-shadow),
+    inset -1px -1px var(--win98-white),
+    inset 2px 2px #051408,
+    inset -2px -2px #1a3a20;
+  padding: 5px 7px;
+  color: var(--lcd-glow);
+  font-family: 'Courier New', Courier, monospace;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Retro Scanlines on LCD */
+.win98-lcd-display::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.25),
+    rgba(0, 0, 0, 0.25) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+}
+
+.lcd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  letter-spacing: 1px;
+  font-weight: bold;
+  border-bottom: 1px dotted var(--lcd-dim);
+  padding-bottom: 3px;
+  margin-bottom: 3px;
+}
+
+.lcd-status-badge {
+  background: var(--lcd-dim);
+  color: #000;
+  padding: 0 3px;
+  border-radius: 1px;
+  font-size: 9px;
+}
+
+.lcd-timer {
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-shadow: 0 0 6px var(--lcd-glow);
+}
+
+.lcd-source {
+  font-size: 9px;
+  color: var(--lcd-dim);
+}
+
+.lcd-track-wrapper {
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  height: 18px;
+}
+
+.lcd-track-text {
+  font-size: 12px;
+  font-weight: bold;
+  text-shadow: 0 0 5px var(--lcd-glow);
+  display: inline-block;
+}
+
+.lcd-track-text.marquee {
+  animation: win98Marquee 10s linear infinite;
+}
+
+@keyframes win98Marquee {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(0); }
+  75% { transform: translateX(calc(-100% + 180px)); }
+  100% { transform: translateX(0); }
+}
+
+/* Details table */
+.win98-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: #222222;
+}
+
+.win98-detail-row {
+  display: flex;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.win98-label {
+  color: #555555;
+  width: 44px;
+  flex-shrink: 0;
+}
+
+.win98-val {
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Progress Bar */
+.win98-progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 2px;
+}
+
+.win98-slider-groove {
+  height: 10px;
+  background-color: #ffffff;
+  box-shadow:
+    inset 1px 1px var(--win98-shadow),
+    inset -1px -1px var(--win98-white),
+    inset 2px 2px var(--win98-dark-shadow),
+    inset -2px -2px var(--win98-light);
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.win98-slider-fill {
+  height: 100%;
+  width: 35%;
+  background-color: var(--win98-blue-dark);
+  transition: width 0.8s linear;
+}
+
+.win98-slider-thumb {
+  position: absolute;
+  left: 35%;
+  top: -3px;
+  width: 10px;
+  height: 16px;
+  background-color: var(--win98-bg);
+  box-shadow:
+    inset 1px 1px var(--win98-white),
+    inset -1px -1px var(--win98-dark-shadow),
+    inset 2px 2px var(--win98-light),
+    inset -2px -2px var(--win98-shadow);
+  transform: translateX(-50%);
+  transition: left 0.8s linear;
+}
+
+.win98-time-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #444444;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+}
+
+/* Vintage Equalizer Row */
+.win98-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #111118;
+  padding: 4px 6px;
+  border: 1px solid var(--win98-shadow);
+  box-shadow: inset 1px 1px #000;
+}
+
+.win98-meter-label {
+  font-size: 8px;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  color: #00ff66;
+  letter-spacing: 1px;
+}
+
+.win98-equalizer {
+  display: flex;
+  gap: 4px;
+  height: 16px;
+  align-items: flex-end;
+}
+
+.eq-col {
+  width: 7px;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    #00ff66 0px,
+    #00ff66 2px,
+    #000000 2px,
+    #000000 3px,
+    #ffff00 9px,
+    #ffff00 11px,
+    #ff3300 13px,
+    #ff3300 15px
+  );
+  opacity: 0.2;
+  transition: height 0.15s ease, opacity 0.15s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.win98-window:not(.paused) .eq-col:nth-child(1) { animation: winEq 0.6s infinite alternate; }
+.win98-window:not(.paused) .eq-col:nth-child(2) { animation: winEq 0.8s infinite alternate 0.1s; }
+.win98-window:not(.paused) .eq-col:nth-child(3) { animation: winEq 0.5s infinite alternate 0.2s; }
+.win98-window:not(.paused) .eq-col:nth-child(4) { animation: winEq 0.9s infinite alternate 0.15s; }
+.win98-window:not(.paused) .eq-col:nth-child(5) { animation: winEq 0.7s infinite alternate 0.05s; }
+.win98-window:not(.paused) .eq-col:nth-child(6) { animation: winEq 0.55s infinite alternate 0.25s; }
+.win98-window:not(.paused) .eq-col:nth-child(7) { animation: winEq 0.85s infinite alternate 0.12s; }
+.win98-window:not(.paused) .eq-col:nth-child(8) { animation: winEq 0.65s infinite alternate 0.18s; }
+
+@keyframes winEq {
+  0% { height: 25%; opacity: 0.4; }
+  50% { height: 95%; opacity: 1; }
+  100% { height: 50%; opacity: 0.7; }
+}
+
+.paused .eq-col {
+  animation: none !important;
+  height: 20% !important;
+  opacity: 0.25 !important;
+}
+
+/* Status Bar */
+.win98-statusbar {
+  display: flex;
+  gap: 2px;
+  margin-top: 3px;
+  font-size: 10px;
+  color: #222222;
+}
+
+.sb-cell {
+  padding: 1px 5px;
+  box-shadow:
+    inset 1px 1px var(--win98-shadow),
+    inset -1px -1px var(--win98-white);
+  white-space: nowrap;
+}
+
+.sb-status {
+  flex: 1;
+}
+
+.sb-kbps, .sb-hz {
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  color: #444444;
+}

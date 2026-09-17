@@ -1,0 +1,610 @@
+:root {
+  --cassette-scale: 1;
+  --accent-color: #F59E0B;
+  --shell-bg: #191b22;
+  --shell-border: #2c2f3d;
+  --label-bg: #f3ede2;
+  --label-text: #21242d;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: transparent !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 16px;
+}
+
+/* Base Widget Container */
+.cassette-widget {
+  position: relative;
+  transform: scale(var(--cassette-scale));
+  transform-origin: top left;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cassette-widget.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(calc(var(--cassette-scale) * 0.94)) translateY(8px);
+}
+
+.cassette-widget.animate-in {
+  animation: cassetteSlideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes cassetteSlideIn {
+  0% {
+    opacity: 0;
+    transform: scale(calc(var(--cassette-scale) * 0.9)) translateY(-14px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(var(--cassette-scale)) translateY(0);
+  }
+}
+
+/* Ambient Backlight Glow */
+.cassette-ambient-glow {
+  position: absolute;
+  inset: -14px -10px -10px -10px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(245, 158, 11, 0.18), transparent 70%);
+  filter: blur(22px);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.8;
+  transition: opacity 0.4s ease;
+}
+
+/* Main Molded Plastic Cassette Shell */
+.cassette-body {
+  position: relative;
+  width: 430px;
+  height: 226px;
+  background: linear-gradient(180deg, #242733 0%, #171821 35%, #12131b 100%);
+  border-radius: 12px;
+  border: 1.5px solid #333748;
+  box-shadow: 
+    0 18px 40px -8px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.6);
+  padding: 12px 14px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  user-select: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* Subtle plastic texture diagonal stripes */
+.cassette-body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.015),
+    rgba(255, 255, 255, 0.015) 2px,
+    transparent 2px,
+    transparent 6px
+  );
+  pointer-events: none;
+}
+
+/* Metal Phillips Screws */
+.screw {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d1d5db, #6b7280 60%, #374151);
+  box-shadow: inset 0 1px 1px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.8);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.screw-slot {
+  width: 5px;
+  height: 1.2px;
+  background: #1f2937;
+  border-radius: 0.5px;
+}
+.screw-tl { top: 7px; left: 7px; transform: rotate(25deg); }
+.screw-tr { top: 7px; right: 7px; transform: rotate(70deg); }
+.screw-bl { bottom: 7px; left: 7px; transform: rotate(115deg); }
+.screw-br { bottom: 7px; right: 7px; transform: rotate(40deg); }
+.screw-bc { bottom: 6px; left: 50%; transform: translateX(-50%) rotate(85deg); }
+
+/* Top Ridge notch */
+.cassette-top-ridge {
+  position: absolute;
+  top: 0;
+  left: 28px;
+  right: 28px;
+  height: 4px;
+  background: #151720;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0 0 4px 4px;
+}
+
+/* Vintage Paper Sticker Label */
+.cassette-label {
+  position: relative;
+  width: 100%;
+  background: #f7f3eb;
+  border-radius: 7px;
+  border: 1px solid #d4cdbe;
+  box-shadow: 
+    0 1px 3px rgba(0,0,0,0.25),
+    inset 0 1px 2px rgba(255,255,255,0.8);
+  padding: 8px 10px 6px 10px;
+  margin-top: 2px;
+  z-index: 2;
+}
+
+/* Label Top Header / Brand stripes */
+.label-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e2dac9;
+}
+
+.label-stripes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 70px;
+}
+
+.stripe {
+  height: 3px;
+  border-radius: 2px;
+}
+.stripe-accent {
+  background: var(--accent-color);
+}
+.stripe-secondary {
+  background: #3B82F6;
+}
+
+.label-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #3f424e;
+}
+
+.side-badge {
+  background: #232630;
+  color: #f7f3eb;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.type-badge {
+  color: #5d6173;
+}
+
+.dolby-badge {
+  font-size: 8px;
+  padding: 0 4px;
+  border: 1px solid #757b91;
+  border-radius: 2px;
+}
+
+/* Meta Row: Cover + Text + Counter */
+.label-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* Album Cover Mini-Print */
+.label-cover-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #222530;
+  border: 1px solid #cfc7b6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.label-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.label-cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9499ad;
+}
+
+/* Typography Box */
+.label-text-box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label-field-title,
+.label-field-artist {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.field-tag {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 8.5px;
+  font-weight: 800;
+  color: #797f94;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.label-title-clip {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.label-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #171821;
+  display: inline-block;
+  letter-spacing: -0.2px;
+}
+
+.label-title.marquee {
+  display: inline-block;
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: marqueeScroll 12s linear infinite;
+}
+
+@keyframes marqueeScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+.label-artist {
+  font-size: 11px;
+  font-weight: 600;
+  color: #4b5062;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mechanical Tape Counter Deck */
+.label-counter-deck {
+  background: #181a22;
+  border: 1px solid #363a4b;
+  border-radius: 4px;
+  padding: 3px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+  flex-shrink: 0;
+}
+
+.counter-label {
+  font-size: 7px;
+  font-weight: 800;
+  color: #8c93a8;
+  letter-spacing: 0.5px;
+}
+
+.counter-display {
+  display: flex;
+  gap: 2px;
+  margin-top: 1px;
+}
+
+.counter-display .digit {
+  background: #0d0e14;
+  color: #e5e7eb;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 0 2px;
+  border-radius: 2px;
+  border: 1px solid #282c3c;
+  line-height: 1.2;
+}
+
+/* Center Clear Tape Window & Spools */
+.cassette-window {
+  position: relative;
+  width: 100%;
+  height: 52px;
+  margin-top: 6px;
+  background: linear-gradient(180deg, rgba(17, 19, 26, 0.94) 0%, rgba(26, 30, 42, 0.94) 100%);
+  border-radius: 5px;
+  border: 1.5px solid #2c3040;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  overflow: hidden;
+}
+
+/* Window Gauge measurement numbers */
+.window-gauge {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 24px;
+  font-size: 7px;
+  font-family: monospace;
+  font-weight: 700;
+  color: #636b83;
+  pointer-events: none;
+}
+
+/* Spool Unit */
+.spool-unit {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Magnetic Tape Wound Around Spool */
+.tape-roll {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, #38241c 0%, #20140e 85%, #150d0a 100%);
+  box-shadow: 0 0 4px rgba(0,0,0,0.8);
+  transition: all 0.5s ease;
+}
+
+.tape-roll-large {
+  width: 42px;
+  height: 42px;
+}
+
+.tape-roll-small {
+  width: 32px;
+  height: 32px;
+}
+
+/* Center White Toothed Hub */
+.spool-hub {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f1f3f7;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+/* Rotating Hub Teeth (6 teeth) */
+.hub-teeth {
+  position: absolute;
+  width: 20px;
+  height: 4.5px;
+  background: #d5dae5;
+  border-radius: 1px;
+}
+.tooth-1 { transform: rotate(0deg); }
+.tooth-2 { transform: rotate(60deg); }
+.tooth-3 { transform: rotate(120deg); }
+
+.hub-center {
+  position: relative;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #11131a;
+  border: 1.5px solid #9ca3af;
+  z-index: 3;
+}
+
+/* Spinning Animation on Playing */
+.cassette-body.playing .spool-hub {
+  animation: spinSpool 2.4s linear infinite;
+}
+
+.cassette-body.paused .spool-hub {
+  animation-play-state: paused;
+}
+
+@keyframes spinSpool {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Magnetic Tape Ribbon Bridge */
+.tape-bridge {
+  flex: 1;
+  height: 10px;
+  position: relative;
+  margin: 0 6px;
+  overflow: hidden;
+}
+
+.tape-ribbon {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 3.5px;
+  background: linear-gradient(90deg, #2b1c15, #442a1f 50%, #2b1c15);
+  transform: translateY(-50%);
+  border-radius: 1px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Bottom Tape Head Indent Section (Trapezoid Bay) */
+.cassette-bottom-bay {
+  position: relative;
+  width: 100%;
+  margin-top: 5px;
+  padding: 4px 8px 2px 8px;
+  background: #15161f;
+  border-radius: 6px;
+  border: 1px solid #282b3a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+}
+
+.roller-hole {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #090a0e;
+  border: 1px solid #373b4e;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.head-gap {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.tape-guide-pad {
+  width: 38px;
+  height: 3px;
+  background: #8b6b47;
+  border-radius: 1px;
+  box-shadow: 0 0 2px rgba(0,0,0,0.6);
+}
+
+/* Tape Status Bar (LED, Badge, VU Level Meter) */
+.tape-status-bar {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: transparent;
+}
+
+/* Play LED */
+.tape-led-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.led-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+  transition: all 0.3s ease;
+}
+
+.cassette-body.playing .led-dot {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.led-text {
+  font-size: 8.5px;
+  font-weight: 800;
+  color: #8c93a8;
+  letter-spacing: 0.5px;
+}
+
+/* Source Badge */
+.tape-source-badge {
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--accent-color);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+/* Stereo VU Meter */
+.tape-vu-meter {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.vu-channel {
+  display: flex;
+  gap: 1.5px;
+  align-items: center;
+}
+
+.vu-bar {
+  width: 2.5px;
+  height: 7px;
+  border-radius: 0.5px;
+  opacity: 0.25;
+  transition: opacity 0.1s ease;
+}
+
+.vu-bar.g { background: #10b981; }
+.vu-bar.y { background: #f59e0b; }
+.vu-bar.r { background: #ef4444; }
+
+/* VU meter bounce animation while playing */
+.cassette-body.playing .vu-bar:nth-child(1) { animation: vuAnim 0.35s infinite alternate ease-in-out; }
+.cassette-body.playing .vu-bar:nth-child(2) { animation: vuAnim 0.45s 0.05s infinite alternate ease-in-out; }
+.cassette-body.playing .vu-bar:nth-child(3) { animation: vuAnim 0.30s 0.10s infinite alternate ease-in-out; }
+.cassette-body.playing .vu-bar:nth-child(4) { animation: vuAnim 0.50s 0.15s infinite alternate ease-in-out; }
+.cassette-body.playing .vu-bar:nth-child(5) { animation: vuAnim 0.40s 0.20s infinite alternate ease-in-out; }
+.cassette-body.playing .vu-bar:nth-child(6) { animation: vuAnim 0.60s 0.25s infinite alternate ease-in-out; }
+
+@keyframes vuAnim {
+  0%   { opacity: 0.2; }
+  50%  { opacity: 0.9; }
+  100% { opacity: 0.4; }
+}
+
+.cassette-body.paused .vu-bar {
+  animation: none !important;
+  opacity: 0.2 !important;
+}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ReChat/config"
+	"ReChat/proxy"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -159,7 +160,7 @@ func (s *OAuthServer) fetchTwitchUser(token string) (*TwitchUser, error) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Client-Id", s.clientID)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := proxy.GetHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
