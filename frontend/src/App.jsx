@@ -55,8 +55,11 @@ function stripEmotesForTTS(text, emoteMap, msgEmoteMap) {
   return filtered.join(' ').trim();
 }
 
-// Check if message is eligible for TTS based on user criteria
 function isMessageEligibleForTTS(msg, s) {
+  if (s.showFollows === false && (msg.eventType === 'follow' || msg.eventType === 'channel.follow')) {
+    return false;
+  }
+
   if (s.ttsAllMessages !== false) {
     return true;
   }
@@ -180,6 +183,7 @@ export default function App() {
     showTimestamps: true,
     timestampFormat: 'HH:MM:SS',
     showBadges: true,
+    showFollows: true,
     channelBadgeMode: 'name',
     iconColor: 'teal',
     maxMessages: 300,
@@ -708,10 +712,13 @@ export default function App() {
     return <SettingsView onClose={closeSettings} />;
   }
 
-  // Filter messages based on muted channels and ignored users/commands
+  // Filter messages based on muted channels, disabled events, and ignored users/commands
   const visibleMessages = messages.filter((msg) => {
     if (msg.channel && mutedChannels.has(msg.channel.toLowerCase()))
       return false;
+    if (settings.showFollows === false && (msg.eventType === 'follow' || msg.eventType === 'channel.follow')) {
+      return false;
+    }
     if (settings.hideIgnoredFromChat && !msg.isEvent) {
       const user = msg.displayName || msg.user || '';
       const text = msg.message || '';

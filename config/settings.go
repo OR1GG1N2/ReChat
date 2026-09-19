@@ -17,6 +17,7 @@ type AppSettings struct {
 	ShowTimestamps      bool              `json:"showTimestamps"`      // true / false
 	TimestampFormat     string            `json:"timestampFormat"`     // "HH:MM:SS" or "HH:MM"
 	ShowBadges          bool              `json:"showBadges"`          // true / false
+	ShowFollows         bool              `json:"showFollows"`         // true / false (display new follower events in chat)
 	ChannelBadgeMode    string            `json:"channelBadgeMode"`    // "name", "icon_only", "icon_bg", "accent_line"
 	IconColor           string            `json:"iconColor"`           // "purple", "white", "emerald", "amber", "cyan", "rose", "channel"
 	MaxMessages         int               `json:"maxMessages"`         // 100 - 1000
@@ -88,6 +89,7 @@ func DefaultSettings() AppSettings {
 		ShowTimestamps:      true,
 		TimestampFormat:     "HH:MM:SS",
 		ShowBadges:          true,
+		ShowFollows:         true,
 		ChannelBadgeMode:    "name",
 		IconColor:           "purple",
 		MaxMessages:         300,
@@ -207,6 +209,8 @@ func LoadSettings() AppSettings {
 				}
 			case "showBadges":
 				s.ShowBadges = (val == "true")
+			case "showFollows":
+				s.ShowFollows = (val != "false")
 			case "channelBadgeMode":
 				if val != "" {
 					s.ChannelBadgeMode = val
@@ -414,6 +418,7 @@ func SaveSettings(s AppSettings) error {
 		"showTimestamps":      strconv.FormatBool(s.ShowTimestamps),
 		"timestampFormat":     s.TimestampFormat,
 		"showBadges":          strconv.FormatBool(s.ShowBadges),
+		"showFollows":         strconv.FormatBool(s.ShowFollows),
 		"channelBadgeMode":    s.ChannelBadgeMode,
 		"iconColor":           s.IconColor,
 		"maxMessages":         strconv.Itoa(s.MaxMessages),

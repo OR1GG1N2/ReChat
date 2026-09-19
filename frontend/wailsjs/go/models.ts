@@ -6,6 +6,7 @@ export namespace config {
 	    showTimestamps: boolean;
 	    timestampFormat: string;
 	    showBadges: boolean;
+	    showFollows: boolean;
 	    channelBadgeMode: string;
 	    iconColor: string;
 	    maxMessages: number;
@@ -78,6 +79,7 @@ export namespace config {
 	        this.showTimestamps = source["showTimestamps"];
 	        this.timestampFormat = source["timestampFormat"];
 	        this.showBadges = source["showBadges"];
+	        this.showFollows = source["showFollows"];
 	        this.channelBadgeMode = source["channelBadgeMode"];
 	        this.iconColor = source["iconColor"];
 	        this.maxMessages = source["maxMessages"];

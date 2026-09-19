@@ -50,6 +50,8 @@ export function SendMessage(arg1:string,arg2:string):Promise<void>;
 
 export function SendTestChatMessage():Promise<Record<string, any>>;
 
+export function SendTestFollowMessage():Promise<Record<string, any>>;
+
 export function SendTestMusicTrack():Promise<Record<string, any>>;
 
 export function SetGameMode(arg1:boolean):Promise<boolean>;

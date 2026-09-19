@@ -98,6 +98,10 @@ export function SendTestChatMessage() {
   return window['go']['main']['App']['SendTestChatMessage']();
 }
 
+export function SendTestFollowMessage() {
+  return window['go']['main']['App']['SendTestFollowMessage']();
+}
+
 export function SendTestMusicTrack() {
   return window['go']['main']['App']['SendTestMusicTrack']();
 }

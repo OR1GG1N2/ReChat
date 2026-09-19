@@ -136,6 +136,9 @@ func NewApp() *App {
 			if cost, err := strconv.Atoi(msg.EventData["rewardCost"]); err == nil {
 				wm.Cost = cost
 			}
+		} else if msg.IsEvent && (msg.EventType == "follow" || msg.EventType == "channel.follow") {
+			wm.Type = "follow"
+			wm.Text = msg.SystemMsg
 		}
 		app.widgetServer.Broadcast(wm)
 	}
@@ -512,7 +515,7 @@ func (a *App) StartTwitchAuth() error {
 	vals.Set("client_id", clientID)
 	vals.Set("redirect_uri", config.OAuthCallbackURI)
 	vals.Set("response_type", "token")
-	vals.Set("scope", "chat:read chat:edit user:read:email channel:read:redemptions")
+	vals.Set("scope", "chat:read chat:edit user:read:email channel:read:redemptions moderator:read:followers")
 
 	authURL := fmt.Sprintf("%s?%s", config.TwitchOAuthAuthURL, vals.Encode())
 
@@ -609,6 +612,51 @@ func (a *App) SendTestChatMessage() map[string]interface{} {
 			Text:      "Тестовое сообщение для проверки оверлея чата в OBS Studio! ✨",
 			Color:     "#9146FF",
 			Badges:    []string{"broadcaster/1", "subscriber/12"},
+			Timestamp: time.Now().Format("15:04"),
+		})
+	}
+	return map[string]interface{}{"success": true}
+}
+
+// SendTestFollowMessage sends a simulated Twitch new follower event to the chat and OBS widget
+func (a *App) SendTestFollowMessage() map[string]interface{} {
+	settings := config.LoadSettings()
+	targetChannel := settings.Username
+	if targetChannel == "" && len(settings.JoinedChannels) > 0 {
+		targetChannel = settings.JoinedChannels[0]
+	}
+	if targetChannel == "" {
+		targetChannel = "streamer"
+	}
+
+	testMsg := &twitch.ChatMessage{
+		ID:          fmt.Sprintf("test-follow-%d", time.Now().UnixNano()),
+		Channel:     targetChannel,
+		User:        "cool_viewer",
+		DisplayName: "Cool_Viewer",
+		Color:       "#10B981",
+		Timestamp:   time.Now().Format("15:04:05"),
+		IsEvent:     true,
+		EventType:   "follow",
+		SystemMsg:   "Cool_Viewer отслеживает канал!",
+		EventData: map[string]string{
+			"userId":    "999999",
+			"userLogin": "cool_viewer",
+			"userName":  "Cool_Viewer",
+		},
+	}
+
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "chat:message", testMsg)
+	}
+	if a.widgetServer != nil {
+		a.widgetServer.Broadcast(widget.WidgetMessage{
+			Type:      "follow",
+			Author:    testMsg.DisplayName,
+			AvatarURL: widget.GetAvatarURL(testMsg.User),
+			Text:      testMsg.SystemMsg,
+			Color:     "#10B981",
+			Channel:   targetChannel,
 			Timestamp: time.Now().Format("15:04"),
 		})
 	}

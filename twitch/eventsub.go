@@ -70,6 +70,26 @@ type eventSubNotificationPayload struct {
 	} `json:"payload"`
 }
 
+type eventSubFollowEvent struct {
+	UserID               string `json:"user_id"`
+	UserLogin            string `json:"user_login"`
+	UserName             string `json:"user_name"`
+	BroadcasterUserID    string `json:"broadcaster_user_id"`
+	BroadcasterUserLogin string `json:"broadcaster_user_login"`
+	BroadcasterUserName  string `json:"broadcaster_user_name"`
+	FollowedAt           string `json:"followed_at"`
+}
+
+type eventSubFollowNotificationPayload struct {
+	Payload struct {
+		Subscription struct {
+			ID   string `json:"id"`
+			Type string `json:"type"`
+		} `json:"subscription"`
+		Event eventSubFollowEvent `json:"event"`
+	} `json:"payload"`
+}
+
 type EventSubClient struct {
 	ctx        context.Context
 	conn       *websocket.Conn
@@ -271,15 +291,67 @@ func (e *EventSubClient) handleRawMessage(data []byte) {
 		// Heartbeat received, connection is healthy
 
 	case "notification":
-		if meta.Metadata.SubscriptionType == "channel.channel_points_custom_reward_redemption.add" {
+		switch meta.Metadata.SubscriptionType {
+		case "channel.channel_points_custom_reward_redemption.add":
 			var notif eventSubNotificationPayload
 			if err := json.Unmarshal(data, &notif); err == nil {
 				e.handleRedemptionEvent(notif.Payload.Event)
+			}
+		case "channel.follow":
+			var notif eventSubFollowNotificationPayload
+			if err := json.Unmarshal(data, &notif); err == nil {
+				e.handleFollowEvent(notif.Payload.Event)
 			}
 		}
 
 	case "revocation":
 		log.Printf("[EventSub] Subscription revoked: %s", string(data))
+	}
+}
+
+func (e *EventSubClient) handleFollowEvent(ev eventSubFollowEvent) {
+	dedupKey := fmt.Sprintf("follow:%s:%s", ev.BroadcasterUserID, ev.UserID)
+
+	e.dedupCacheMu.Lock()
+	now := time.Now()
+	// Cleanup entries older than 5 minutes
+	for k, t := range e.dedupCache {
+		if now.Sub(t) > 5*time.Minute {
+			delete(e.dedupCache, k)
+		}
+	}
+	if _, exists := e.dedupCache[dedupKey]; exists {
+		e.dedupCacheMu.Unlock()
+		return
+	}
+	e.dedupCache[dedupKey] = now
+	e.dedupCacheMu.Unlock()
+
+	systemMsg := fmt.Sprintf("%s отслеживает канал!", ev.UserName)
+
+	chatMsg := &ChatMessage{
+		ID:          fmt.Sprintf("follow-%s-%s-%d", ev.BroadcasterUserID, ev.UserID, time.Now().UnixNano()),
+		Channel:     ev.BroadcasterUserLogin,
+		User:        ev.UserLogin,
+		DisplayName: ev.UserName,
+		Timestamp:   time.Now().Format("15:04:05"),
+		IsEvent:     true,
+		EventType:   "follow",
+		SystemMsg:   systemMsg,
+		EventData: map[string]string{
+			"userId":               ev.UserID,
+			"userLogin":            ev.UserLogin,
+			"userName":             ev.UserName,
+			"broadcasterUserId":    ev.BroadcasterUserID,
+			"broadcasterUserLogin": ev.BroadcasterUserLogin,
+			"followedAt":           ev.FollowedAt,
+		},
+	}
+
+	if e.onMessage != nil {
+		e.onMessage(chatMsg)
+	} else if e.ctx != nil {
+		runtime.EventsEmit(e.ctx, "chat:message", chatMsg)
 	}
 }
 
@@ -390,12 +462,27 @@ func (e *EventSubClient) subscribeForChannel(channelName, sessionID string) {
 		return
 	}
 
+	// 1. Subscribe to channel points custom rewards
+	e.createSubscription(sessionID, "channel.channel_points_custom_reward_redemption.add", "1", map[string]string{
+		"broadcaster_user_id": broadcasterID,
+	}, channelName, "channel points")
+
+	// 2. Subscribe to channel follow events (v2 requires broadcaster_user_id & moderator_user_id)
+	moderatorID := e.userID
+	if moderatorID == "" {
+		moderatorID = broadcasterID
+	}
+	e.createSubscription(sessionID, "channel.follow", "2", map[string]string{
+		"broadcaster_user_id": broadcasterID,
+		"moderator_user_id":   moderatorID,
+	}, channelName, "follows")
+}
+
+func (e *EventSubClient) createSubscription(sessionID, subType, version string, condition map[string]string, channelName, label string) {
 	reqBody := map[string]interface{}{
-		"type":    "channel.channel_points_custom_reward_redemption.add",
-		"version": "1",
-		"condition": map[string]string{
-			"broadcaster_user_id": broadcasterID,
-		},
+		"type":      subType,
+		"version":   version,
+		"condition": condition,
 		"transport": map[string]string{
 			"method":     "websocket",
 			"session_id": sessionID,
@@ -418,15 +505,15 @@ func (e *EventSubClient) subscribeForChannel(channelName, sessionID string) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("[EventSub] Subscription request failed for #%s: %v", channelName, err)
+		log.Printf("[EventSub] %s subscription request failed for #%s: %v", label, channelName, err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusOK {
-		log.Printf("[EventSub] Successfully subscribed to channel points for #%s (ID: %s)", channelName, broadcasterID)
+		log.Printf("[EventSub] Successfully subscribed to %s for #%s (ID: %s)", label, channelName, condition["broadcaster_user_id"])
 	} else {
-		log.Printf("[EventSub] Subscription error for #%s (HTTP %d)", channelName, resp.StatusCode)
+		log.Printf("[EventSub] Subscription error for %s on #%s (HTTP %d)", label, channelName, resp.StatusCode)
 	}
 }
 

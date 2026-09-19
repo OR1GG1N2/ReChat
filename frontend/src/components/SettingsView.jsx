@@ -17,6 +17,7 @@ import {
   GetCurrentTrack,
   SendTestMusicTrack,
   SendTestChatMessage,
+  SendTestFollowMessage,
   OpenMusicThemesDir,
   TestProxyConnection,
   OpenAndImportWireGuardConf,
@@ -26,6 +27,7 @@ import { WindowSetAlwaysOnTop, EventsOn, BrowserOpenURL } from '../../wailsjs/ru
 import TwitchIcon from './TwitchIcon';
 import CustomTitleBar from './CustomTitleBar';
 import {
+  Heart,
   Sliders,
   Radio,
   User,
@@ -109,6 +111,7 @@ export default function SettingsView({ onClose }) {
     showTimestamps: true,
     timestampFormat: 'HH:MM:SS',
     showBadges: true,
+    showFollows: true,
     channelBadgeMode: 'name',
     iconColor: 'teal',
     maxMessages: 300,
@@ -204,6 +207,7 @@ export default function SettingsView({ onClose }) {
             ...prev,
             ...loaded,
             fontFamily: loaded.fontFamily || 'Lato',
+            showFollows: loaded.showFollows !== undefined ? Boolean(loaded.showFollows) : true,
             messageSpacing: loaded.messageSpacing || 'default',
             textAlign: loaded.textAlign || 'left',
             alwaysOnTop: loaded.alwaysOnTop || false,
@@ -326,6 +330,7 @@ export default function SettingsView({ onClose }) {
         showTimestamps: next.showTimestamps !== undefined ? Boolean(next.showTimestamps) : true,
         timestampFormat: next.timestampFormat || 'HH:MM:SS',
         showBadges: next.showBadges !== undefined ? Boolean(next.showBadges) : true,
+        showFollows: next.showFollows !== undefined ? Boolean(next.showFollows) : true,
         channelBadgeMode: next.channelBadgeMode || 'name',
         iconColor: next.iconColor || 'purple',
         fontFamily: next.fontFamily || 'Lato',
@@ -428,6 +433,20 @@ export default function SettingsView({ onClose }) {
       console.error('Failed to send test chat message:', err);
     } finally {
       setTimeout(() => setIsTestingChat(false), 800);
+    }
+  };
+
+  const [isTestingFollow, setIsTestingFollow] = useState(false);
+  const handleSendTestFollow = async () => {
+    setIsTestingFollow(true);
+    try {
+      await SendTestFollowMessage();
+      setStatusMsg('Тестовый фолловер отправлен в чат!');
+      setTimeout(() => setStatusMsg(''), 2500);
+    } catch (err) {
+      console.error('Failed to send test follow message:', err);
+    } finally {
+      setTimeout(() => setIsTestingFollow(false), 800);
     }
   };
 
@@ -1046,7 +1065,16 @@ body {
               className="px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.14] text-[#ECECF1] rounded-xl text-xs font-semibold border border-white/[0.06] transition-all cursor-pointer flex items-center gap-1.5"
             >
               {isTestingChat ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 text-[#9146FF]" />}
-              <span>Отправить тестовое сообщение в OBS</span>
+              <span>Тестовое сообщение</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSendTestFollow}
+              disabled={isTestingFollow}
+              className="px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.14] text-[#ECECF1] rounded-xl text-xs font-semibold border border-white/[0.06] transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              {isTestingFollow ? <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" /> : <Heart className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/20" />}
+              <span>Тест фолловера</span>
             </button>
             <button
               type="button"
@@ -2247,6 +2275,45 @@ body {
                 />
                 <div className="w-11 h-6 bg-[#181920] border border-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3B82F6]" />
               </label>
+            </div>
+
+            <div className="h-px bg-white/[0.06]" />
+
+            {/* Show Follows Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-[#ECECF1] block">
+                  Новые фолловеры (Follow)
+                </span>
+                <span className="text-xs text-[#8E92A4]">
+                  Отображать баннер в чате, когда зритель отслеживает канал
+                </span>
+              </div>
+              <div className="flex items-center gap-3 ml-4 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleSendTestFollow}
+                  disabled={isTestingFollow}
+                  title="Отправить тестовое оповещение фолловера"
+                  className="px-2.5 py-1 bg-white/[0.05] hover:bg-white/[0.1] active:bg-white/[0.15] text-[#ECECF1] rounded-lg border border-white/[0.06] text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {isTestingFollow ? (
+                    <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
+                  ) : (
+                    <Heart className="w-3 h-3 text-emerald-400 fill-emerald-400/20" />
+                  )}
+                  <span>Тест</span>
+                </button>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.showFollows !== false}
+                    onChange={(e) => updateAndSave({ showFollows: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-[#181920] border border-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#10B981]" />
+                </label>
+              </div>
             </div>
 
             <div className="h-px bg-white/[0.06]" />
