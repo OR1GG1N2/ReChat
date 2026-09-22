@@ -97,11 +97,16 @@
           '</div>';
       } else {
         const color = msg.color || '#a9b7d1';
+        const platformBadge = msg.platform === 'kick'
+          ? '<span class="platform-badge kick-badge" title="Kick" style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3px;background:#53FC18;margin-right:5px;vertical-align:-2px;"><svg width="9" height="9" viewBox="0 0 24 24" fill="#000"><path d="M3 2h5.5v7h2.5V5.5h5.5V2H21v6.5h-4.5V11H14v2h2.5v2.5H21V22h-4.5v-3.5H11v-3.5H8.5V22H3V2z"/></svg></span>'
+          : '';
         el.className = 'row message-row';
+        el.setAttribute('data-platform', msg.platform || 'twitch');
         el.innerHTML =
           '<div class="msg-card">' +
             renderAvatar(msg.author, msg.avatarUrl, 'msg-avatar') +
             '<div class="msg-body">' +
+              platformBadge +
               '<span class="msg-author" style="color:' + color + '">' + escHtml(msg.author) + '</span>' +
               '<span class="msg-text">' + escHtml(msg.text) + '</span>' +
             '</div>' +

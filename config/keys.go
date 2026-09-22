@@ -3,7 +3,7 @@ package config
 // Centralized store for all API Keys, Client IDs, URLs and application constants.
 
 const (
-	// Twitch OAuth & Client Credentials
+	// Twitch OAuth & Client Credentials (public client identifier for OAuth Authorization Code Flow)
 	TwitchClientID = "dubkqvo11x6o39aiyrqb70cqbtv8f5"
 
 	// OAuth Server Settings
@@ -17,6 +17,7 @@ const (
 	TwitchHelixEventSubSubscriptionsURL   = "https://api.twitch.tv/helix/eventsub/subscriptions"
 	TwitchHelixUsersURL                   = "https://api.twitch.tv/helix/users"
 	TwitchHelixBadgesGlobalURL            = "https://api.twitch.tv/helix/chat/badges/global"
+	TwitchHelixFollowersURL               = "https://api.twitch.tv/helix/channels/followers"
 	TwitchOAuthAuthURL                    = "https://id.twitch.tv/oauth2/authorize"
 
 	// Database File Name

@@ -67,6 +67,15 @@ export namespace config {
 	    musicPauseDelay: number;
 	    musicScale: number;
 	    musicBgOpacity: number;
+	    daEnabled: boolean;
+	    daToken: string;
+	    daShowInChat: boolean;
+	    daMinChatAmount: number;
+	    daTTS: boolean;
+	    daMinTTSAmount: number;
+	    daShowGoalBar: boolean;
+	    kickEnabled: boolean;
+	    kickChannels: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSettings(source);
@@ -140,6 +149,15 @@ export namespace config {
 	        this.musicPauseDelay = source["musicPauseDelay"];
 	        this.musicScale = source["musicScale"];
 	        this.musicBgOpacity = source["musicBgOpacity"];
+	        this.daEnabled = source["daEnabled"];
+	        this.daToken = source["daToken"];
+	        this.daShowInChat = source["daShowInChat"];
+	        this.daMinChatAmount = source["daMinChatAmount"];
+	        this.daTTS = source["daTTS"];
+	        this.daMinTTSAmount = source["daMinTTSAmount"];
+	        this.daShowGoalBar = source["daShowGoalBar"];
+	        this.kickEnabled = source["kickEnabled"];
+	        this.kickChannels = source["kickChannels"];
 	    }
 	}
 

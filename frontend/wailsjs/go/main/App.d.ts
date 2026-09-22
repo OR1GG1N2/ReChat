@@ -6,13 +6,25 @@ export function ConnectChannel(arg1:string):Promise<void>;
 
 export function DisconnectChannel():Promise<void>;
 
+export function GetCurrentGoal():Promise<Record<string, any>>;
+
 export function GetCurrentTrack():Promise<Record<string, any>>;
+
+export function GetDonationWidgetURL():Promise<string>;
 
 export function GetEmotes():Promise<Record<string, string>>;
 
+export function GetFollowerWidgetThemes():Promise<Array<string>>;
+
+export function GetFollowerWidgetURL():Promise<string>;
+
 export function GetGlobalBadges():Promise<Record<string, string>>;
 
+export function GetGoalWidgetURL():Promise<string>;
+
 export function GetJoinedChannels():Promise<Array<string>>;
+
+export function GetJoinedKickChannels():Promise<Array<string>>;
 
 export function GetMusicWidgetThemes():Promise<Array<string>>;
 
@@ -21,6 +33,8 @@ export function GetMusicWidgetURL():Promise<string>;
 export function GetSettings():Promise<config.AppSettings>;
 
 export function GetTTSVoices():Promise<Record<string, string>>;
+
+export function GetTwitchAuthStatus():Promise<Record<string, any>>;
 
 export function GetWidgetThemes():Promise<Array<string>>;
 
@@ -32,11 +46,21 @@ export function IsGameMode():Promise<boolean>;
 
 export function JoinChannel(arg1:string):Promise<void>;
 
+export function JoinKickChannel(arg1:string):Promise<void>;
+
 export function LeaveChannel(arg1:string):Promise<void>;
+
+export function LeaveKickChannel(arg1:string):Promise<void>;
 
 export function LogoutTwitch():Promise<void>;
 
 export function OpenAndImportWireGuardConf():Promise<Record<string, any>>;
+
+export function OpenDonationThemesDir():Promise<void>;
+
+export function OpenFollowerThemesDir():Promise<void>;
+
+export function OpenGoalThemesDir():Promise<void>;
 
 export function OpenMusicThemesDir():Promise<void>;
 
@@ -50,15 +74,23 @@ export function SendMessage(arg1:string,arg2:string):Promise<void>;
 
 export function SendTestChatMessage():Promise<Record<string, any>>;
 
+export function SendTestDonation(arg1:number,arg2:string,arg3:string,arg4:string):Promise<Record<string, any>>;
+
 export function SendTestFollowMessage():Promise<Record<string, any>>;
 
+export function SendTestGoal(arg1:string,arg2:number,arg3:number,arg4:string):Promise<Record<string, any>>;
+
 export function SendTestMusicTrack():Promise<Record<string, any>>;
+
+export function SetDAToken(arg1:string):Promise<void>;
 
 export function SetGameMode(arg1:boolean):Promise<boolean>;
 
 export function SpeakText(arg1:string,arg2:string):Promise<string>;
 
 export function StartTwitchAuth():Promise<void>;
+
+export function TestDAConnection(arg1:string):Promise<Record<string, any>>;
 
 export function TestProxyConnection(arg1:string,arg2:string,arg3:boolean,arg4:string,arg5:string):Promise<Record<string, any>>;
 

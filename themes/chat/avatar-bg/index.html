@@ -200,7 +200,11 @@
         const firstMsgBadge = isFirstMsg
           ? '<span class="badge-first-msg">★ ПЕРВОЕ СООБЩЕНИЕ</span>'
           : '';
+        const platformBadge = msg.platform === 'kick'
+          ? '<span class="platform-badge kick-badge" title="Kick" style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3px;background:#53FC18;margin-right:4px;vertical-align:-2px;"><svg width="9" height="9" viewBox="0 0 24 24" fill="#000"><path d="M3 2h5.5v7h2.5V5.5h5.5V2H21v6.5h-4.5V11H14v2h2.5v2.5H21V22h-4.5v-3.5H11v-3.5H8.5V22H3V2z"/></svg></span>'
+          : '';
 
+        el.setAttribute('data-platform', msg.platform || 'twitch');
         el.innerHTML =
           '<div class="msg-card" style="--user-color:' + color + '">' +
             '<div class="' + bgClass + '" style="' + bgStyle + '">' +
@@ -209,6 +213,7 @@
             '<div class="card-gradient-overlay"></div>' +
             '<div class="card-content">' +
               '<div class="msg-header">' +
+                platformBadge +
                 renderBadges(msg.badges, msg.badgeUrls) +
                 '<span class="msg-author" style="color:' + color + '">' + escHtml(author) + '</span>' +
                 firstMsgBadge +

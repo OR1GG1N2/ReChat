@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +17,7 @@ import (
 
 type ChatMessage struct {
 	ID          string            `json:"id"`
+	Platform    string            `json:"platform,omitempty"` // "twitch" or "kick"
 	Channel     string            `json:"channel"`
 	User        string            `json:"user"`
 	DisplayName string            `json:"displayName"`
@@ -42,11 +42,13 @@ type Client struct {
 	stopChan     chan struct{}
 	onMessage    func(*ChatMessage)
 	rewardFilter func(*ChatMessage) bool
+	parser       *IRCParser
 }
 
 func NewClient() *Client {
 	return &Client{
 		joinedChans: make(map[string]bool),
+		parser:      NewIRCParser(),
 	}
 }
 
@@ -79,6 +81,9 @@ func (c *Client) ensureConnectedUnlocked() error {
 
 	c.conn = conn
 	c.isConnected = true
+	if c.stopChan != nil {
+		close(c.stopChan)
+	}
 	c.stopChan = make(chan struct{})
 
 	// Request capabilities (tags, commands, membership)
@@ -99,7 +104,7 @@ func (c *Client) ensureConnectedUnlocked() error {
 
 	c.emitStatus("connected", "", "Connected to Twitch IRC server")
 
-	go c.readLoop()
+	go c.readLoop(conn)
 
 	return nil
 }
@@ -244,15 +249,10 @@ func (c *Client) ReconnectWithAuth() error {
 		c.isConnected = false
 	}
 
-	if err := c.ensureConnectedUnlocked(); err != nil {
-		return err
-	}
-
-	for ch := range c.joinedChans {
-		_ = c.conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("JOIN #%s", ch)))
-	}
-
-	return nil
+	// ensureConnectedUnlocked starts a new readLoop goroutine which will
+	// re-join all channels once IRC registration (001/376) is received.
+	// Do NOT send JOIN here — they race against authentication and are dropped.
+	return c.ensureConnectedUnlocked()
 }
 
 func (c *Client) GetJoinedChannels() []string {
@@ -277,20 +277,13 @@ func (c *Client) AutoJoinStoredChannels() {
 	}
 }
 
-func (c *Client) readLoop() {
+func (c *Client) readLoop(conn *websocket.Conn) {
 	for {
-		c.connMu.Lock()
-		conn := c.conn
-		c.connMu.Unlock()
-
-		if conn == nil {
-			return
-		}
-
 		_, messageBytes, err := conn.ReadMessage()
 		if err != nil {
 			c.connMu.Lock()
-			if c.isConnected {
+			if c.conn == conn {
+				c.conn = nil
 				c.isConnected = false
 				c.emitStatus("disconnected", "", "Connection closed")
 			}
@@ -307,499 +300,43 @@ func (c *Client) readLoop() {
 
 			if strings.HasPrefix(line, "PING") {
 				c.connMu.Lock()
-				if c.conn != nil {
-					_ = c.conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
+				if c.conn == conn {
+					_ = conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
 				}
 				c.connMu.Unlock()
 				continue
 			}
 
-			if strings.Contains(line, "USERNOTICE") {
-				msg := c.parseUserNotice(line)
-				if msg != nil && c.ctx != nil {
-					runtime.EventsEmit(c.ctx, "chat:message", msg)
-					if c.onMessage != nil { c.onMessage(msg) }
+			// On successful IRC registration / welcome, join active channels
+			if strings.Contains(line, " 001 ") || strings.Contains(line, " 376 ") || strings.Contains(line, "GLOBALUSERSTATE") {
+				c.connMu.Lock()
+				if c.conn == conn {
+					for ch := range c.joinedChans {
+						_ = conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("JOIN #%s", ch)))
+					}
 				}
-			} else if strings.Contains(line, "CLEARCHAT") {
-				msg := c.parseClearChat(line)
-				if msg != nil && c.ctx != nil {
-					runtime.EventsEmit(c.ctx, "chat:message", msg)
-					if c.onMessage != nil { c.onMessage(msg) }
-				}
-			} else if strings.Contains(line, "CLEARMSG") {
-				msg := c.parseClearMsg(line)
-				if msg != nil && c.ctx != nil {
-					runtime.EventsEmit(c.ctx, "chat:message", msg)
-					if c.onMessage != nil { c.onMessage(msg) }
-				}
-			} else if strings.Contains(line, "NOTICE") && !strings.Contains(line, "USERNOTICE") {
-				msg := c.parseNotice(line)
-				if msg != nil && c.ctx != nil {
-					runtime.EventsEmit(c.ctx, "chat:message", msg)
-					if c.onMessage != nil { c.onMessage(msg) }
-				}
-			} else if strings.Contains(line, "PRIVMSG") {
-				msg := c.parsePrivMsg(line)
-				if msg != nil {
+				c.connMu.Unlock()
+			}
+
+			msg := c.parser.Parse(line)
+			if msg != nil {
+				if msg.EventType == "reward" {
 					c.connMu.Lock()
 					filter := c.rewardFilter
 					c.connMu.Unlock()
-					if msg.EventType == "reward" && filter != nil && filter(msg) {
+					if filter != nil && filter(msg) {
 						// Suppress duplicate reward from IRC because EventSub is active and handling it
 						continue
 					}
-					if c.ctx != nil {
-						runtime.EventsEmit(c.ctx, "chat:message", msg)
-					}
-					if c.onMessage != nil {
-						c.onMessage(msg)
-					}
+				}
+				if c.ctx != nil {
+					runtime.EventsEmit(c.ctx, "chat:message", msg)
+				}
+				if c.onMessage != nil {
+					c.onMessage(msg)
 				}
 			}
 		}
-	}
-}
-
-func (c *Client) parseUserNotice(raw string) *ChatMessage {
-	msg := &ChatMessage{
-		Timestamp: time.Now().Format("15:04:05"),
-		IsEvent:   true,
-		EventData: make(map[string]string),
-	}
-
-	tags := ""
-	rest := raw
-	msgEmotesTag := ""
-
-	if strings.HasPrefix(raw, "@") {
-		parts := strings.SplitN(raw[1:], " ", 2)
-		if len(parts) == 2 {
-			tags = parts[0]
-			rest = parts[1]
-		}
-	}
-
-	if tags != "" {
-		tagPairs := strings.Split(tags, ";")
-		for _, pair := range tagPairs {
-			kv := strings.SplitN(pair, "=", 2)
-			if len(kv) == 2 {
-				key, val := kv[0], kv[1]
-				switch key {
-				case "msg-id":
-					msg.EventType = val
-				case "display-name":
-					msg.DisplayName = val
-				case "login":
-					msg.User = val
-				case "color":
-					msg.Color = val
-				case "id":
-					msg.ID = val
-				case "badges":
-					msg.Badges = val
-				case "emotes":
-					msgEmotesTag = val
-				case "system-msg":
-					unescaped := strings.ReplaceAll(val, `\s`, " ")
-					unescaped = strings.ReplaceAll(unescaped, `\r`, "\r")
-					unescaped = strings.ReplaceAll(unescaped, `\n`, "\n")
-					unescaped = strings.ReplaceAll(unescaped, `\:`, ":")
-					msg.SystemMsg = unescaped
-				default:
-					if strings.HasPrefix(key, "msg-param-") {
-						paramKey := strings.TrimPrefix(key, "msg-param-")
-						msg.EventData[paramKey] = val
-					}
-				}
-			}
-		}
-	}
-
-	// Extract Channel and user message text if present
-	if idx := strings.Index(rest, " USERNOTICE "); idx != -1 {
-		afterNotice := rest[idx+12:]
-		msgStart := strings.Index(afterNotice, " :")
-		if msgStart != -1 {
-			msg.Channel = strings.TrimPrefix(afterNotice[:msgStart], "#")
-			msg.Message = afterNotice[msgStart+2:]
-		} else {
-			msg.Channel = strings.TrimPrefix(strings.TrimSpace(afterNotice), "#")
-		}
-	}
-
-	if msg.EventType == "" {
-		msg.EventType = "notice"
-	}
-	if msg.DisplayName == "" {
-		msg.DisplayName = msg.User
-	}
-
-	// Format Fallback System Messages
-	if msg.SystemMsg == "" {
-		switch msg.EventType {
-		case "sub":
-			tier := msg.EventData["sub-plan"]
-			if tier == "Prime" {
-				msg.SystemMsg = fmt.Sprintf("%s subscribed with Prime!", msg.DisplayName)
-			} else {
-				msg.SystemMsg = fmt.Sprintf("%s subscribed at Tier %s!", msg.DisplayName, tierToName(tier))
-			}
-		case "resub":
-			months := msg.EventData["cumulative-months"]
-			streak := msg.EventData["streak-months"]
-			if streak != "" && streak != "0" {
-				msg.SystemMsg = fmt.Sprintf("%s resubscribed for %s months (%s month streak)!", msg.DisplayName, months, streak)
-			} else if months != "" {
-				msg.SystemMsg = fmt.Sprintf("%s resubscribed for %s months!", msg.DisplayName, months)
-			} else {
-				msg.SystemMsg = fmt.Sprintf("%s resubscribed!", msg.DisplayName)
-			}
-		case "subgift", "anonsubgift":
-			recipient := msg.EventData["recipient-display-name"]
-			if recipient == "" {
-				recipient = msg.EventData["recipient-user-name"]
-			}
-			gifter := msg.DisplayName
-			if msg.EventType == "anonsubgift" || gifter == "" {
-				gifter = "An anonymous gifter"
-			}
-			msg.SystemMsg = fmt.Sprintf("%s gifted a sub to %s!", gifter, recipient)
-		case "submysterygift":
-			massCount := msg.EventData["mass-gift-count"]
-			msg.SystemMsg = fmt.Sprintf("%s is gifting %s random subscriptions in the channel!", msg.DisplayName, massCount)
-		case "raid":
-			viewers := msg.EventData["viewerCount"]
-			if viewers != "" {
-				msg.SystemMsg = fmt.Sprintf("%s is raiding with a party of %s viewers!", msg.DisplayName, viewers)
-			} else {
-				msg.SystemMsg = fmt.Sprintf("%s is raiding the channel!", msg.DisplayName)
-			}
-		case "announcement":
-			msg.SystemMsg = fmt.Sprintf("Announcement from %s", msg.DisplayName)
-		case "bitsbadgetier":
-			threshold := msg.EventData["threshold"]
-			msg.SystemMsg = fmt.Sprintf("%s unlocked the %s Bits badge!", msg.DisplayName, threshold)
-		case "viewermilestone":
-			msg.SystemMsg = fmt.Sprintf("%s reached a watch streak milestone!", msg.DisplayName)
-		case "charitydonation":
-			amount := msg.EventData["donation-amount"]
-			currency := msg.EventData["donation-currency"]
-			msg.SystemMsg = fmt.Sprintf("%s donated %s %s to the charity campaign!", msg.DisplayName, amount, currency)
-		default:
-			msg.SystemMsg = fmt.Sprintf("%s: %s event", msg.DisplayName, msg.EventType)
-		}
-	}
-
-	// Parse emotes in user message if attached
-	if msgEmotesTag != "" && msg.Message != "" {
-		parseEmoteTag(msg, msgEmotesTag)
-	}
-
-	return msg
-}
-
-func (c *Client) parseClearChat(raw string) *ChatMessage {
-	msg := &ChatMessage{
-		Timestamp: time.Now().Format("15:04:05"),
-		IsEvent:   true,
-		EventType: "ban",
-		EventData: make(map[string]string),
-	}
-
-	tags := ""
-	rest := raw
-
-	if strings.HasPrefix(raw, "@") {
-		parts := strings.SplitN(raw[1:], " ", 2)
-		if len(parts) == 2 {
-			tags = parts[0]
-			rest = parts[1]
-		}
-	}
-
-	if tags != "" {
-		tagPairs := strings.Split(tags, ";")
-		for _, pair := range tagPairs {
-			kv := strings.SplitN(pair, "=", 2)
-			if len(kv) == 2 {
-				key, val := kv[0], kv[1]
-				if key == "ban-duration" {
-					msg.EventData["duration"] = val
-					msg.EventType = "timeout"
-				}
-			}
-		}
-	}
-
-	if idx := strings.Index(rest, " CLEARCHAT "); idx != -1 {
-		afterClear := rest[idx+11:]
-		msgStart := strings.Index(afterClear, " :")
-		if msgStart != -1 {
-			msg.Channel = strings.TrimPrefix(afterClear[:msgStart], "#")
-			targetUser := afterClear[msgStart+2:]
-			msg.User = targetUser
-			msg.DisplayName = targetUser
-			if msg.EventType == "timeout" {
-				dur := msg.EventData["duration"]
-				msg.SystemMsg = fmt.Sprintf("🛡️ @%s was timed out for %ss", targetUser, dur)
-			} else {
-				msg.SystemMsg = fmt.Sprintf("⛔ @%s was permanently banned", targetUser)
-			}
-		} else {
-			msg.Channel = strings.TrimPrefix(strings.TrimSpace(afterClear), "#")
-			msg.EventType = "clearchat"
-			msg.SystemMsg = "🧹 Chat was cleared by a moderator"
-		}
-	}
-
-	return msg
-}
-
-func (c *Client) parseClearMsg(raw string) *ChatMessage {
-	msg := &ChatMessage{
-		Timestamp: time.Now().Format("15:04:05"),
-		IsEvent:   true,
-		EventType: "deletemsg",
-		EventData: make(map[string]string),
-	}
-
-	tags := ""
-	rest := raw
-
-	if strings.HasPrefix(raw, "@") {
-		parts := strings.SplitN(raw[1:], " ", 2)
-		if len(parts) == 2 {
-			tags = parts[0]
-			rest = parts[1]
-		}
-	}
-
-	if tags != "" {
-		tagPairs := strings.Split(tags, ";")
-		for _, pair := range tagPairs {
-			kv := strings.SplitN(pair, "=", 2)
-			if len(kv) == 2 {
-				key, val := kv[0], kv[1]
-				switch key {
-				case "login":
-					msg.User = val
-					msg.DisplayName = val
-				case "target-msg-id":
-					msg.EventData["targetId"] = val
-				}
-			}
-		}
-	}
-
-	if idx := strings.Index(rest, " CLEARMSG "); idx != -1 {
-		afterClear := rest[idx+10:]
-		msgStart := strings.Index(afterClear, " :")
-		if msgStart != -1 {
-			msg.Channel = strings.TrimPrefix(afterClear[:msgStart], "#")
-			msg.Message = afterClear[msgStart+2:]
-		}
-	}
-
-	msg.SystemMsg = fmt.Sprintf("🗑️ Message deleted from @%s", msg.DisplayName)
-	return msg
-}
-
-func (c *Client) parseNotice(raw string) *ChatMessage {
-	msg := &ChatMessage{
-		Timestamp: time.Now().Format("15:04:05"),
-		IsEvent:   true,
-		EventType: "notice",
-		EventData: make(map[string]string),
-	}
-
-	tags := ""
-	rest := raw
-
-	if strings.HasPrefix(raw, "@") {
-		parts := strings.SplitN(raw[1:], " ", 2)
-		if len(parts) == 2 {
-			tags = parts[0]
-			rest = parts[1]
-		}
-	}
-
-	if tags != "" {
-		tagPairs := strings.Split(tags, ";")
-		for _, pair := range tagPairs {
-			kv := strings.SplitN(pair, "=", 2)
-			if len(kv) == 2 {
-				if kv[0] == "msg-id" {
-					msg.EventData["msgId"] = kv[1]
-				}
-			}
-		}
-	}
-
-	if idx := strings.Index(rest, " NOTICE "); idx != -1 {
-		afterNotice := rest[idx+8:]
-		msgStart := strings.Index(afterNotice, " :")
-		if msgStart != -1 {
-			msg.Channel = strings.TrimPrefix(afterNotice[:msgStart], "#")
-			msg.SystemMsg = afterNotice[msgStart+2:]
-		}
-	}
-
-	if msg.SystemMsg == "" {
-		return nil
-	}
-
-	return msg
-}
-
-func (c *Client) parsePrivMsg(raw string) *ChatMessage {
-	msg := &ChatMessage{
-		Timestamp: time.Now().Format("15:04:05"),
-		EventData: make(map[string]string),
-	}
-
-	tags := ""
-	rest := raw
-	msgEmotesTag := ""
-	bitsVal := ""
-	customRewardID := ""
-	msgIDTag := ""
-
-	if strings.HasPrefix(raw, "@") {
-		parts := strings.SplitN(raw[1:], " ", 2)
-		if len(parts) == 2 {
-			tags = parts[0]
-			rest = parts[1]
-		}
-	}
-
-	if tags != "" {
-		tagPairs := strings.Split(tags, ";")
-		for _, pair := range tagPairs {
-			kv := strings.SplitN(pair, "=", 2)
-			if len(kv) == 2 {
-				key, val := kv[0], kv[1]
-				switch key {
-				case "display-name":
-					msg.DisplayName = val
-				case "color":
-					msg.Color = val
-				case "id":
-					msg.ID = val
-				case "badges":
-					msg.Badges = val
-				case "emotes":
-					msgEmotesTag = val
-				case "bits":
-					bitsVal = val
-				case "custom-reward-id":
-					customRewardID = val
-				case "msg-id":
-					msgIDTag = val
-				case "first-msg":
-					if val == "1" {
-						msg.IsFirstMsg = true
-					}
-				}
-			}
-		}
-	}
-
-	if idx := strings.Index(rest, " PRIVMSG "); idx != -1 {
-		prefix := rest[:idx]
-		if strings.HasPrefix(prefix, ":") {
-			userEnd := strings.Index(prefix, "!")
-			if userEnd != -1 {
-				msg.User = prefix[1:userEnd]
-			}
-		}
-		if msg.DisplayName == "" {
-			msg.DisplayName = msg.User
-		}
-
-		afterPrivmsg := rest[idx+9:]
-		msgStart := strings.Index(afterPrivmsg, " :")
-		if msgStart != -1 {
-			msg.Channel = strings.TrimPrefix(afterPrivmsg[:msgStart], "#")
-			msg.Message = afterPrivmsg[msgStart+2:]
-		}
-	}
-
-	if msg.Message == "" {
-		return nil
-	}
-
-	// Check if this PRIVMSG is an Event:
-	if bitsVal != "" {
-		msg.IsEvent = true
-		msg.EventType = "cheer"
-		msg.EventData["bits"] = bitsVal
-		msg.SystemMsg = fmt.Sprintf("%s cheered %s bits!", msg.DisplayName, bitsVal)
-	} else if customRewardID != "" {
-		msg.IsEvent = true
-		msg.EventType = "reward"
-		msg.EventData["rewardId"] = customRewardID
-		msg.SystemMsg = fmt.Sprintf("Заказ за баллы канала от %s", msg.DisplayName)
-	} else if msgIDTag == "user-intro" {
-		msg.IsEvent = true
-		msg.EventType = "intro"
-		msg.SystemMsg = fmt.Sprintf("👋 Приветствуем %s в чате (Первое сообщение)!", msg.DisplayName)
-	} else if msgIDTag == "highlighted-message" {
-		msg.IsEvent = true
-		msg.EventType = "highlighted"
-		msg.SystemMsg = fmt.Sprintf("✨ Выделенное сообщение от %s", msg.DisplayName)
-	} else if msgIDTag == "gigantified-emote-message" {
-		msg.IsEvent = true
-		msg.EventType = "powerup"
-		msg.SystemMsg = fmt.Sprintf("⚡ %s activated a Power-up!", msg.DisplayName)
-	}
-
-	// Parse emotes
-	if msgEmotesTag != "" {
-		parseEmoteTag(msg, msgEmotesTag)
-	}
-
-	return msg
-}
-
-func parseEmoteTag(msg *ChatMessage, msgEmotesTag string) {
-	entries := strings.Split(msgEmotesTag, "/")
-	runeMsg := []rune(msg.Message)
-	for _, entry := range entries {
-		parts := strings.SplitN(entry, ":", 2)
-		if len(parts) == 2 {
-			emoteID := parts[0]
-			positions := strings.Split(parts[1], ",")
-			if len(positions) > 0 {
-				posRange := strings.SplitN(positions[0], "-", 2)
-				if len(posRange) == 2 {
-					start, err1 := strconv.Atoi(posRange[0])
-					end, err2 := strconv.Atoi(posRange[1])
-					if err1 == nil && err2 == nil && start >= 0 && end < len(runeMsg) && start <= end {
-						word := string(runeMsg[start : end+1])
-						if msg.EmoteMap == nil {
-							msg.EmoteMap = make(map[string]string)
-						}
-						msg.EmoteMap[word] = fmt.Sprintf("https://static-cdn.jtvnw.net/emoticons/v2/%s/default/dark/1.0", emoteID)
-					}
-				}
-			}
-		}
-	}
-}
-
-func tierToName(tier string) string {
-	switch tier {
-	case "1000", "1":
-		return "1"
-	case "2000", "2":
-		return "2"
-	case "3000", "3":
-		return "3"
-	case "Prime":
-		return "Prime"
-	default:
-		return tier
 	}
 }
 
@@ -826,6 +363,11 @@ func (c *Client) emitChannelsUpdated() {
 func (c *Client) Disconnect() {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
+
+	if c.stopChan != nil {
+		close(c.stopChan)
+		c.stopChan = nil
+	}
 
 	if c.conn != nil {
 		_ = c.conn.Close()

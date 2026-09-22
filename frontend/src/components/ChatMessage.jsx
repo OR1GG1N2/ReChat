@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import TwitchIcon from './TwitchIcon';
+import KickIcon from './KickIcon';
 import TwitchBadge from './TwitchBadge';
 import EmoteText from './EmoteText';
 import { Copy, Check, AtSign } from 'lucide-react';
@@ -63,9 +64,15 @@ export default function ChatMessage({
       className={`group relative leading-relaxed px-2 rounded transition-colors duration-100 hover:bg-white/[0.03] break-words ${spacingClass} ${alignClass}`}
     >
       {/* Platform Icon Badge */}
-      <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[4px] bg-[#9146FF] shadow-xs mr-1.5 align-middle select-none">
-        <TwitchIcon className="w-3 h-3 text-white fill-white" />
-      </span>
+      {msg.platform === 'kick' ? (
+        <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[4px] bg-[#53FC18] shadow-xs mr-1.5 align-middle select-none" title="Kick">
+          <KickIcon className="w-2.5 h-2.5 text-black fill-black" />
+        </span>
+      ) : (
+        <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[4px] bg-[#9146FF] shadow-xs mr-1.5 align-middle select-none" title="Twitch">
+          <TwitchIcon className="w-3 h-3 text-white fill-white" />
+        </span>
+      )}
 
       {/* Badges */}
       {settings.showBadges && msg.badges && (
@@ -78,8 +85,8 @@ export default function ChatMessage({
       {settings.showTimestamps && msg.timestamp && (
         <span className="text-[#6C7082] text-[11px] font-mono select-none align-middle mr-1.5 tabular-nums">
           {settings.timestampFormat === 'HH:MM'
-            ? msg.timestamp.slice(0, 5)
-            : msg.timestamp}
+            ? String(msg.timestamp).slice(0, 5)
+            : String(msg.timestamp)}
         </span>
       )}
 

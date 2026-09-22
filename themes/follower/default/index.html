@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Follower Notification Widget</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/widget/follower/assets/default/style.css">
+</head>
+<body>
+  <!-- Container where notifications pop up -->
+  <div id="notification-root" class="notification-root"></div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const configuredStyle = (params.get('style') || 'ios').toLowerCase(); // 'ios', 'android', 'island'
+    const displayDuration = Math.max(2, parseInt(params.get('duration') || '6', 10)) * 1000;
+    const soundEnabled = params.get('sound') !== '0' && params.get('sound') !== 'false';
+    const position = (params.get('position') || 'top').toLowerCase(); // 'top', 'bottom'
+
+    const rootEl = document.getElementById('notification-root');
+    if (position === 'bottom') {
+      rootEl.classList.add('pos-bottom');
+    }
+
+    // Queue for sequential notification playback
+    const queue = [];
+    let isShowing = false;
+
+    // Web Audio API Soft Chime Synthesis (zero external audio dependencies)
+    let audioCtx = null;
+    function playChime(style) {
+      if (!soundEnabled) return;
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        if (!audioCtx) audioCtx = new AudioContext();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const now = audioCtx.currentTime;
+
+        if (style === 'android') {
+          // Android soft Material Pop (Two-tone bubble)
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.12);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.25, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        } else {
+          // iOS Tri-Tone style pleasant harmonic chime (C6 -> E6 harmonic)
+          const playTone = (freq, start, duration, vol) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(0.0001, start);
+            gain.gain.linearRampToValueAtTime(vol, start + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(start);
+            osc.stop(start + duration);
+          };
+          playTone(659.25, now, 0.22, 0.25); // E5
+          playTone(880.00, now + 0.09, 0.32, 0.28); // A5
+          playTone(1046.50, now + 0.18, 0.45, 0.22); // C6
+        }
+      } catch (e) {
+        console.warn('Audio chime playback error:', e);
+      }
+    }
+
+    // Connect to ReChat Server-Sent Events stream without replaying chat backlog
+    function connectSSE() {
+      const es = new EventSource('/widget/events?replay=false');
+
+      es.addEventListener('reload', () => location.reload());
+
+      es.addEventListener('message', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          // Check if message is a follower event
+          const isFollow = data.type === 'follow' || 
+                           (data.isEvent && (data.eventType === 'follow' || data.eventType === 'channel.follow'));
+          if (isFollow) {
+            queue.push({
+              author: data.author || data.displayName || data.user || 'Зритель',
+              avatarUrl: data.avatarUrl || '',
+              channel: data.channel || '',
+              timeText: 'сейчас',
+            });
+            processQueue();
+          }
+        } catch (err) {
+          console.error('Failed to parse SSE payload:', err);
+        }
+      });
+
+      es.onerror = () => {
+        es.close();
+        setTimeout(connectSSE, 3000);
+      };
+    }
+
+    connectSSE();
+
+    function processQueue() {
+      if (isShowing || queue.length === 0) return;
+      isShowing = true;
+      const item = queue.shift();
+      showNotification(item);
+    }
+
+    function showNotification(item) {
+      const activeStyle = configuredStyle === 'android' ? 'android' : 
+                          configuredStyle === 'island' ? 'island' : 'ios';
+
+      const notifEl = document.createElement('div');
+      notifEl.className = 'notif-card style-' + activeStyle;
+
+      playChime(activeStyle);
+
+      if (activeStyle === 'island') {
+        // Dynamic Island markup
+        notifEl.innerHTML = 
+          '<div class="island-pill">' +
+            '<div class="island-left">' +
+              '<div class="avatar-box">' +
+                renderAvatarHtml(item.author, item.avatarUrl, 'island-avatar') +
+              '</div>' +
+            '</div>' +
+            '<div class="island-center">' +
+              '<div class="island-title">Новый фолловер</div>' +
+              '<div class="island-name">@' + escHtml(item.author) + '</div>' +
+            '</div>' +
+            '<div class="island-right">' +
+              '<div class="island-heart">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="#34D399">' +
+                  '<path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>' +
+                '</svg>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      } else if (activeStyle === 'android') {
+        // Android Material You / OneUI markup
+        notifEl.innerHTML = 
+          '<div class="android-box">' +
+            '<div class="android-header">' +
+              '<div class="app-icon-wrap android-app-badge">' +
+                '<svg class="twitch-glyph" width="13" height="13" viewBox="0 0 24 24" fill="white">' +
+                  '<path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>' +
+                '</svg>' +
+              '</div>' +
+              '<span class="android-app-title">Twitch</span>' +
+              '<span class="android-dot">•</span>' +
+              '<span class="android-time">' + escHtml(item.timeText) + '</span>' +
+            '</div>' +
+            '<div class="android-body">' +
+              '<div class="android-avatar-container">' +
+                renderAvatarHtml(item.author, item.avatarUrl, 'android-avatar') +
+                '<div class="android-heart-badge">' +
+                  '<svg width="10" height="10" viewBox="0 0 24 24" fill="white">' +
+                    '<path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>' +
+                  '</svg>' +
+                '</div>' +
+              '</div>' +
+              '<div class="android-text-wrap">' +
+                '<div class="android-title">Новый фолловер</div>' +
+                '<div class="android-msg"><span class="highlight">@' + escHtml(item.author) + '</span> подписался на канал</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="android-actions">' +
+              '<span class="android-chip">Приветствовать 👋</span>' +
+            '</div>' +
+          '</div>';
+      } else {
+        // iOS 17+ Banner Notification markup
+        notifEl.innerHTML = 
+          '<div class="ios-glass-card">' +
+            '<div class="ios-header">' +
+              '<div class="ios-app-brand">' +
+                '<div class="ios-app-icon">' +
+                  '<svg class="twitch-glyph" width="13" height="13" viewBox="0 0 24 24" fill="white">' +
+                    '<path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>' +
+                  '</svg>' +
+                '</div>' +
+                '<span class="ios-app-name">TWITCH</span>' +
+              '</div>' +
+              '<span class="ios-time">' + escHtml(item.timeText) + '</span>' +
+            '</div>' +
+            '<div class="ios-body">' +
+              '<div class="ios-avatar-wrapper">' +
+                renderAvatarHtml(item.author, item.avatarUrl, 'ios-avatar') +
+              '</div>' +
+              '<div class="ios-content-text">' +
+                '<div class="ios-card-title">Новый фолловер</div>' +
+                '<div class="ios-card-subtitle"><span class="ios-bold">@' + escHtml(item.author) + '</span> теперь отслеживает канал!</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      }
+
+      rootEl.appendChild(notifEl);
+
+      // Trigger transition with requestAnimationFrame for smooth spring physics
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          notifEl.classList.add('is-active');
+        });
+      });
+
+      // Auto dismiss after duration
+      setTimeout(() => {
+        notifEl.classList.remove('is-active');
+        notifEl.classList.add('is-dismissing');
+
+        setTimeout(() => {
+          if (notifEl.parentNode) notifEl.remove();
+          isShowing = false;
+          // Process next notification in queue
+          setTimeout(processQueue, 250);
+        }, 500);
+      }, displayDuration);
+    }
+
+    function renderAvatarHtml(author, avatarUrl, className) {
+      const bg = avatarColor(author);
+      const initialLetter = (author || '?').charAt(0).toUpperCase();
+      if (avatarUrl) {
+        return '<div class="' + className + '" style="background:' + bg + '">' +
+          '<img src="' + escHtml(avatarUrl) + '" alt="" loading="lazy" onerror="this.remove()" />' +
+          '<span>' + escHtml(initialLetter) + '</span>' +
+        '</div>';
+      }
+      return '<div class="' + className + '" style="background:' + bg + '">' +
+        '<span>' + escHtml(initialLetter) + '</span>' +
+      '</div>';
+    }
+
+    function escHtml(s) {
+      return (s || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function avatarColor(name) {
+      const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6', '#10b981'];
+      let h = 0;
+      for (let i = 0; i < (name || '').length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+      return colors[Math.abs(h) % colors.length];
+    }
+  </script>
+</body>
+</html>

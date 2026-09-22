@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	runtime_os "runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +20,9 @@ import (
 	"ReChat/twitch"
 	"ReChat/media"
 	"ReChat/widget"
+	"ReChat/donationalerts"
+	"ReChat/pipeline"
+	"ReChat/kick"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -29,6 +31,7 @@ import (
 type App struct {
 	ctx            context.Context
 	twitchClient   *twitch.Client
+	kickClient     *kick.Client
 	badgeFetcher   *twitch.BadgeFetcher
 	emoteFetcher   *twitch.EmoteFetcher
 	oauthServer    *auth.OAuthServer
@@ -36,6 +39,8 @@ type App struct {
 	eventsubClient *twitch.EventSubClient
 	widgetServer   *widget.WidgetServer
 	mediaManager   *media.Manager
+	daClient       *donationalerts.Client
+	pipeline       *pipeline.Pipeline
 	isGameMode     bool
 	lastToggleTime time.Time
 	gameModeMu     sync.Mutex
@@ -50,101 +55,53 @@ func NewApp() *App {
 		ttsClient:    tts.NewYandexTTS(),
 		widgetServer: widget.NewWidgetServer(3500),
 		mediaManager: media.NewManager(),
+		daClient:     donationalerts.NewClient(""),
+		pipeline:     pipeline.New(),
+		kickClient:   kick.NewClient(),
 	}
 
 	app.widgetServer.SetBadgeFetcher(app.badgeFetcher.GetBadgeMap)
 	app.widgetServer.SetEmoteFetcher(app.emoteFetcher.GetEmoteMap)
 
-	var (
-		rewardDedupMu sync.Mutex
-		rewardDedup   = make(map[string]time.Time)
-	)
-
-	// Shared helper: convert any ChatMessage to a WidgetMessage and broadcast
-	broadcastToWidget := func(msg *twitch.ChatMessage) {
-		if msg == nil {
-			return
+	// Wire pipeline sinks
+	app.pipeline.OnChatMessage(func(msg *twitch.ChatMessage) {
+		if app.ctx != nil {
+			runtime.EventsEmit(app.ctx, "chat:message", msg)
 		}
-
-		if msg.IsEvent && msg.EventType == "reward" {
-			// If EventSub is active and this reward came from IRC, suppress duplicate
-			fromEventSub := msg.EventData["rewardType"] == "eventsub"
-			if !fromEventSub && app.eventsubClient != nil && app.eventsubClient.IsRunning() {
-				return
-			}
-
-			rewardDedupMu.Lock()
-			now := time.Now()
-			for k, t := range rewardDedup {
-				if now.Sub(t) > 30*time.Second {
-					delete(rewardDedup, k)
-				}
-			}
-
-			u := strings.ToLower(strings.TrimSpace(msg.User))
-			if u == "" {
-				u = strings.ToLower(strings.TrimSpace(msg.DisplayName))
-			}
-			txt := strings.TrimSpace(msg.Message)
-			rewardID := msg.EventData["rewardId"]
-
-			keyUserText := fmt.Sprintf("%s|%s", u, txt)
-			keyUserReward := fmt.Sprintf("%s|%s", u, rewardID)
-
-			if txt != "" {
-				if _, exists := rewardDedup[keyUserText]; exists {
-					rewardDedupMu.Unlock()
-					return
-				}
-				rewardDedup[keyUserText] = now
-			}
-			if rewardID != "" {
-				if _, exists := rewardDedup[keyUserReward]; exists {
-					rewardDedupMu.Unlock()
-					return
-				}
-				rewardDedup[keyUserReward] = now
-			}
-			rewardDedupMu.Unlock()
-		}
-
-		var badgesList []string
-		if msg.Badges != "" {
-			for _, b := range strings.Split(msg.Badges, ",") {
-				if tb := strings.TrimSpace(b); tb != "" {
-					badgesList = append(badgesList, tb)
-				}
-			}
-		}
-
-		wm := widget.WidgetMessage{
-			Type:       "message",
-			Author:     msg.DisplayName,
-			AvatarURL:  widget.GetAvatarURL(msg.User),
-			Color:      msg.Color,
-			Badges:     badgesList,
-			Text:       msg.Message,
-			EmoteMap:   msg.EmoteMap,
-			Channel:    msg.Channel,
-			Timestamp:  msg.Timestamp,
-			IsFirstMsg: msg.IsFirstMsg || (msg.EventData != nil && msg.EventData["firstMsg"] == "1") || msg.EventType == "intro",
-		}
-		if msg.IsEvent && msg.EventType == "reward" {
-			wm.Type = "reward"
-			wm.RewardTitle = msg.EventData["rewardTitle"]
-			wm.UserInput = msg.Message
-			if cost, err := strconv.Atoi(msg.EventData["rewardCost"]); err == nil {
-				wm.Cost = cost
-			}
-		} else if msg.IsEvent && (msg.EventType == "follow" || msg.EventType == "channel.follow") {
-			wm.Type = "follow"
-			wm.Text = msg.SystemMsg
-		}
+	})
+	app.pipeline.OnWidgetMessage(func(wm widget.WidgetMessage) {
 		app.widgetServer.Broadcast(wm)
-	}
+	})
+	app.pipeline.OnDonation(func(author string, amount float64, currency, message string) {
+		if app.widgetServer != nil {
+			app.widgetServer.BroadcastDonation(author, amount, currency, message)
+		}
+	})
+	app.pipeline.OnGoal(func(ev donationalerts.GoalEvent) {
+		if app.widgetServer != nil {
+			app.widgetServer.BroadcastGoal(ev.Title, ev.CurrentAmount, ev.TargetAmount, ev.Currency)
+		}
+		if app.ctx != nil {
+			runtime.EventsEmit(app.ctx, "goal:update", map[string]interface{}{
+				"title":         ev.Title,
+				"currentAmount": ev.CurrentAmount,
+				"targetAmount":  ev.TargetAmount,
+				"currency":      ev.Currency,
+				"percent":       ev.Percent,
+			})
+		}
+	})
 
-	// Wire IRC client → widget (all PRIVMSG, events, etc.)
-	app.twitchClient.SetMessageHandler(broadcastToWidget)
+	// Wire IRC client → pipeline widget sink
+	app.twitchClient.SetMessageHandler(func(msg *twitch.ChatMessage) {
+		isEventSub := app.eventsubClient != nil && app.eventsubClient.IsRunning()
+		app.pipeline.ConsumeIRCMessage(msg, isEventSub)
+	})
+
+	// Wire Kick client → pipeline sink
+	app.kickClient.SetMessageHandler(func(msg *twitch.ChatMessage) {
+		app.pipeline.ConsumeIRCMessage(msg, false)
+	})
 
 	// Suppress IRC custom-reward-id duplicates when EventSub is running
 	app.twitchClient.SetRewardFilter(func(msg *twitch.ChatMessage) bool {
@@ -156,12 +113,9 @@ func NewApp() *App {
 		app.widgetServer.BroadcastAvatarUpdate(login, avatarURL)
 	})
 
-	// Wire EventSub client → Wails frontend + widget
+	// Wire EventSub client → pipeline (emits to both Wails frontend & OBS widget)
 	app.eventsubClient = twitch.NewEventSubClient(func(msg *twitch.ChatMessage) {
-		if app.ctx != nil {
-			runtime.EventsEmit(app.ctx, "chat:message", msg)
-		}
-		broadcastToWidget(msg)
+		app.pipeline.ConsumeEventSubMessage(msg)
 	})
 	return app
 }
@@ -215,6 +169,19 @@ func (a *App) startup(ctx context.Context) {
 		a.eventsubClient.AddChannel(ch)
 	}
 
+	// Auto-connect Kick channels if enabled
+	a.kickClient.SetContext(ctx)
+	if settings.KickEnabled {
+		for _, kch := range settings.KickChannels {
+			cleanSlug := strings.TrimSpace(kch)
+			if cleanSlug != "" {
+				go func(slug string) {
+					_ = a.kickClient.JoinChannel(slug)
+				}(cleanSlug)
+			}
+		}
+	}
+
 	// Connect media manager to widget server and start watcher
 	a.widgetServer.SetMediaManager(a.mediaManager)
 	a.mediaManager.Start()
@@ -252,6 +219,30 @@ func (a *App) startup(ctx context.Context) {
 			runtime.EventsEmit(a.ctx, "emotes:loaded", emotes)
 		}
 	}()
+
+	// Wire DonationAlerts client -> Wails frontend + widget server
+	a.daClient.SetCallbacks(
+		func(ev donationalerts.DonationEvent) {
+			s := config.LoadSettings()
+			a.pipeline.ConsumeDonation(ev, &s)
+		},
+		func(ev donationalerts.GoalEvent) {
+			a.pipeline.ConsumeGoal(ev)
+		},
+		func(connected bool, status string) {
+			if a.ctx != nil {
+				runtime.EventsEmit(a.ctx, "da:status", map[string]interface{}{
+					"connected": connected,
+					"status":    status,
+				})
+			}
+		},
+	)
+
+	if settings.DAEnabled && strings.TrimSpace(settings.DAToken) != "" {
+		a.daClient.SetToken(settings.DAToken)
+		a.daClient.Start()
+	}
 }
 
 // shutdown is called when the app closes
@@ -269,6 +260,9 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.mediaManager != nil {
 		a.mediaManager.Stop()
+	}
+	if a.daClient != nil {
+		a.daClient.Stop()
 	}
 	if a.widgetServer != nil {
 		a.widgetServer.Stop()
@@ -334,6 +328,55 @@ func (a *App) GetJoinedChannels() []string {
 	return a.twitchClient.GetJoinedChannels()
 }
 
+// JoinKickChannel joins a Kick channel chat and saves to settings
+func (a *App) JoinKickChannel(channelName string) error {
+	if a.kickClient == nil {
+		return fmt.Errorf("kick client not initialized")
+	}
+	clean := strings.ToLower(strings.TrimSpace(channelName))
+	clean = strings.TrimPrefix(clean, "#")
+	if clean == "" {
+		return fmt.Errorf("channel name cannot be empty")
+	}
+	err := a.kickClient.JoinChannel(clean)
+	if err == nil {
+		a.syncKickChannelsToDB()
+	}
+	return err
+}
+
+// LeaveKickChannel leaves a Kick channel chat and updates settings
+func (a *App) LeaveKickChannel(channelName string) error {
+	if a.kickClient == nil {
+		return fmt.Errorf("kick client not initialized")
+	}
+	clean := strings.ToLower(strings.TrimSpace(channelName))
+	clean = strings.TrimPrefix(clean, "#")
+	err := a.kickClient.LeaveChannel(clean)
+	if err == nil {
+		a.syncKickChannelsToDB()
+	}
+	return err
+}
+
+// GetJoinedKickChannels returns list of active Kick channels
+func (a *App) GetJoinedKickChannels() []string {
+	if a.kickClient == nil {
+		return []string{}
+	}
+	return a.kickClient.GetJoinedChannels()
+}
+
+func (a *App) syncKickChannelsToDB() {
+	if a.kickClient == nil {
+		return
+	}
+	joined := a.kickClient.GetJoinedChannels()
+	settings := config.LoadSettings()
+	settings.KickChannels = joined
+	_ = config.SaveSettings(settings)
+}
+
 // ConnectChannel alias for backwards compatibility
 func (a *App) ConnectChannel(channelName string) error {
 	return a.JoinChannel(channelName)
@@ -359,6 +402,8 @@ func (a *App) SaveSettings(s config.AppSettings) error {
 		oldSettings.ProxyAuth != s.ProxyAuth ||
 		oldSettings.ProxyUser != s.ProxyUser ||
 		oldSettings.ProxyPassword != s.ProxyPassword)
+
+	daChanged := (oldSettings.DAEnabled != s.DAEnabled || oldSettings.DAToken != s.DAToken)
 
 	err := config.SaveSettings(s)
 	if err == nil {
@@ -386,6 +431,14 @@ func (a *App) SaveSettings(s config.AppSettings) error {
 				_ = a.twitchClient.ReconnectWithAuth()
 				a.eventsubClient.Reconnect()
 			}()
+		}
+
+		if daChanged && a.daClient != nil {
+			a.daClient.Stop()
+			if s.DAEnabled && strings.TrimSpace(s.DAToken) != "" {
+				a.daClient.SetToken(s.DAToken)
+				a.daClient.Start()
+			}
 		}
 	}
 	return err
@@ -521,8 +574,7 @@ func (a *App) StartTwitchAuth() error {
 
 	if a.ctx != nil {
 		runtime.BrowserOpenURL(a.ctx, authURL)
-	}
-	if runtime_os.GOOS == "windows" {
+	} else if runtime_os.GOOS == "windows" {
 		_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", authURL).Start()
 	}
 	return nil
@@ -545,6 +597,47 @@ func (a *App) LogoutTwitch() error {
 	return err
 }
 
+// GetTwitchAuthStatus validates the current OAuth token and returns scope and follower status
+func (a *App) GetTwitchAuthStatus() map[string]interface{} {
+	settings := config.LoadSettings()
+	if settings.OAuthToken == "" {
+		return map[string]interface{}{
+			"authenticated":    false,
+			"hasFollowerScope": false,
+		}
+	}
+
+	val, err := twitch.ValidateTwitchToken(settings.OAuthToken)
+	if err != nil {
+		return map[string]interface{}{
+			"authenticated":    true,
+			"username":         settings.Username,
+			"userId":           settings.UserID,
+			"hasFollowerScope": false,
+			"error":            err.Error(),
+		}
+	}
+
+	hasFollowerScope := val.HasScope("moderator:read:followers")
+
+	// Persist auto-resolved UserID if it was missing in SQLite
+	if settings.UserID == "" && val.UserID != "" {
+		settings.UserID = val.UserID
+		_ = config.SaveSettings(settings)
+		if a.eventsubClient != nil {
+			a.eventsubClient.SetUserID(val.UserID)
+		}
+	}
+
+	return map[string]interface{}{
+		"authenticated":    true,
+		"username":         val.Login,
+		"userId":           val.UserID,
+		"hasFollowerScope": hasFollowerScope,
+		"scopes":           val.Scopes,
+	}
+}
+
 // SpeakText synthesizes speech from text using Yandex Alice TTS.
 // Returns a base64 data URI string: "data:audio/ogg;base64,..."
 func (a *App) SpeakText(text string, voice string) (string, error) {
@@ -562,6 +655,30 @@ func (a *App) GetTTSVoices() map[string]string {
 // GetWidgetURL returns the URL of the OBS chat widget (for copy-pasting into Browser Source)
 func (a *App) GetWidgetURL() string {
 	return fmt.Sprintf("http://localhost:%d/widget/chat", a.widgetServer.Port())
+}
+
+// GetFollowerWidgetURL returns the URL of the OBS Follower Notification widget
+func (a *App) GetFollowerWidgetURL() string {
+	return fmt.Sprintf("http://localhost:%d/widget/follower", a.widgetServer.Port())
+}
+
+// GetFollowerWidgetThemes returns list of available follower themes
+func (a *App) GetFollowerWidgetThemes() []string {
+	return a.widgetServer.GetFollowerThemes()
+}
+
+// OpenFollowerThemesDir opens the follower themes directory in Explorer
+func (a *App) OpenFollowerThemesDir() {
+	dir := filepath.Join(a.widgetServer.ThemesDirectory(), "follower")
+	_ = os.MkdirAll(dir, 0755)
+	switch runtime_os.GOOS {
+	case "windows":
+		_ = exec.Command("explorer", dir).Start()
+	case "darwin":
+		_ = exec.Command("open", dir).Start()
+	default:
+		_ = exec.Command("xdg-open", dir).Start()
+	}
 }
 
 // GetMusicWidgetURL returns the URL of the OBS Now Playing widget
@@ -661,6 +778,173 @@ func (a *App) SendTestFollowMessage() map[string]interface{} {
 		})
 	}
 	return map[string]interface{}{"success": true}
+}
+
+// SetDAToken updates the personal DonationAlerts token and starts/stops connection
+func (a *App) SetDAToken(token string) error {
+	s := config.LoadSettings()
+	s.DAToken = strings.TrimSpace(token)
+	s.DAEnabled = s.DAToken != ""
+	return a.SaveSettings(s)
+}
+
+// TestDAConnection validates a DonationAlerts Bearer token with their API
+func (a *App) TestDAConnection(token string) map[string]interface{} {
+	ok, userName, err := a.daClient.TestConnection(token)
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		}
+	}
+	return map[string]interface{}{
+		"success":  ok,
+		"username": userName,
+	}
+}
+
+// SendTestDonation sends a simulated donation event to chat and OBS widget
+func (a *App) SendTestDonation(amount float64, currency, user, message string) map[string]interface{} {
+	if amount <= 0 {
+		amount = 150
+	}
+	if currency == "" {
+		currency = "RUB"
+	}
+	if user == "" {
+		user = "Случайный Донатер"
+	}
+	if message == "" {
+		message = "Спасибо за потрясающий стрим! Держи на кофе ☕"
+	}
+
+	formattedAmount := fmt.Sprintf("%.0f %s", amount, currency)
+	if amount != float64(int64(amount)) {
+		formattedAmount = fmt.Sprintf("%.2f %s", amount, currency)
+	}
+
+	userColor := "#F59E0B"
+	if amount >= 500 {
+		userColor = "#EC4899"
+	}
+
+	// 1. Broadcast to OBS widget
+	if a.widgetServer != nil {
+		a.widgetServer.BroadcastDonation(user, amount, currency, message)
+	}
+
+	// 2. Emit chat message to frontend
+	testMsg := &twitch.ChatMessage{
+		ID:          fmt.Sprintf("test-da-%d", time.Now().UnixNano()),
+		Channel:     "donations",
+		User:        strings.ToLower(user),
+		DisplayName: user,
+		Color:       userColor,
+		Message:     message,
+		Timestamp:   time.Now().Format("15:04:05"),
+		IsEvent:     true,
+		EventType:   "donation",
+		SystemMsg:   fmt.Sprintf("%s задонатил %s!", user, formattedAmount),
+		EventData: map[string]string{
+			"amount":          fmt.Sprintf("%f", amount),
+			"currency":        currency,
+			"formattedAmount": formattedAmount,
+			"userName":        user,
+			"message":         message,
+		},
+	}
+
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "chat:message", testMsg)
+	}
+
+	return map[string]interface{}{"success": true}
+}
+
+// SendTestGoal updates goal progress and broadcasts update
+func (a *App) SendTestGoal(title string, current, target float64, currency string) map[string]interface{} {
+	if title == "" {
+		title = "Сбор на новый микрофон"
+	}
+	if target <= 0 {
+		target = 10000
+	}
+	if current < 0 {
+		current = 6500
+	}
+	if currency == "" {
+		currency = "RUB"
+	}
+
+	if a.widgetServer != nil {
+		a.widgetServer.BroadcastGoal(title, current, target, currency)
+	}
+
+	pct := 0.0
+	if target > 0 {
+		pct = (current / target) * 100
+		if pct > 100 {
+			pct = 100
+		}
+	}
+
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "goal:update", map[string]interface{}{
+			"title":         title,
+			"currentAmount": current,
+			"targetAmount":  target,
+			"currency":      currency,
+			"percent":       pct,
+		})
+	}
+
+	return map[string]interface{}{"success": true}
+}
+
+// GetDonationWidgetURL returns the URL of the OBS Donation Alert widget
+func (a *App) GetDonationWidgetURL() string {
+	return fmt.Sprintf("http://localhost:%d/widget/donation", a.widgetServer.Port())
+}
+
+// GetGoalWidgetURL returns the URL of the OBS Goal Progress widget
+func (a *App) GetGoalWidgetURL() string {
+	return fmt.Sprintf("http://localhost:%d/widget/goal", a.widgetServer.Port())
+}
+
+// GetCurrentGoal returns the cached goal info for chat or widget
+func (a *App) GetCurrentGoal() map[string]interface{} {
+	if a.widgetServer != nil {
+		return a.widgetServer.GetCurrentGoal()
+	}
+	return map[string]interface{}{}
+}
+
+// OpenDonationThemesDir opens the donation alert themes folder in Explorer
+func (a *App) OpenDonationThemesDir() {
+	dir := filepath.Join(a.widgetServer.ThemesDirectory(), "donations")
+	_ = os.MkdirAll(dir, 0755)
+	switch runtime_os.GOOS {
+	case "windows":
+		_ = exec.Command("explorer", dir).Start()
+	case "darwin":
+		_ = exec.Command("open", dir).Start()
+	default:
+		_ = exec.Command("xdg-open", dir).Start()
+	}
+}
+
+// OpenGoalThemesDir opens the goal progress widget themes folder in Explorer
+func (a *App) OpenGoalThemesDir() {
+	dir := filepath.Join(a.widgetServer.ThemesDirectory(), "goals")
+	_ = os.MkdirAll(dir, 0755)
+	switch runtime_os.GOOS {
+	case "windows":
+		_ = exec.Command("explorer", dir).Start()
+	case "darwin":
+		_ = exec.Command("open", dir).Start()
+	default:
+		_ = exec.Command("xdg-open", dir).Start()
+	}
 }
 
 

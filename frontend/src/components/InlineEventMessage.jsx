@@ -1,5 +1,6 @@
 import React from 'react';
 import TwitchIcon from './TwitchIcon';
+import KickIcon from './KickIcon';
 import TwitchBadge from './TwitchBadge';
 import EmoteText from './EmoteText';
 import { getChannelColor, getTwitchIconColor } from '../utils/channelColors';
@@ -269,8 +270,12 @@ export default function InlineEventMessage({
         label:
           eventType === 'timeout'
             ? 'ТАЙМАУТ'
-            : eventType === 'ban'
+            : eventType === 'ban' || eventType === 'channel.ban'
             ? 'БАН'
+            : eventType === 'unban' || eventType === 'channel.unban'
+            ? 'РАЗБАН'
+            : eventType === 'deletemsg' || eventType === 'channel.chat.clear_user_messages'
+            ? 'УДАЛЕНИЕ'
             : 'ОЧИСТКА ЧАТА',
         icon: ShieldAlert,
         bg: 'bg-gradient-to-r from-[#33151b]/90 via-[#291a20]/70 to-[#242631]/90',
@@ -335,6 +340,28 @@ export default function InlineEventMessage({
       };
       break;
 
+    // 💰 Monetization: DonationAlerts
+    case 'donation':
+    case 'donationalerts': {
+      const numAmount = parseFloat(eventData?.amount || 0);
+      const isBig = numAmount >= 500;
+      config = {
+        label: eventData?.formattedAmount ? `ДОНАТ ${eventData.formattedAmount}` : 'ДОНАТ',
+        icon: Coins,
+        bg: isBig
+          ? 'bg-gradient-to-r from-[#391228]/95 via-[#2b172a]/85 to-[#1c1822]/90'
+          : 'bg-gradient-to-r from-[#2f220c]/95 via-[#261f17]/85 to-[#1c1a20]/90',
+        border: isBig ? 'border-pink-500/35' : 'border-amber-500/35',
+        accent: isBig ? '#ec4899' : '#f59e0b',
+        badgeBg: isBig ? 'bg-pink-950/80' : 'bg-amber-950/80',
+        badgeBorder: isBig ? 'border-pink-500/50' : 'border-amber-500/50',
+        badgeText: isBig ? 'text-pink-300' : 'text-amber-300',
+        isDonation: true,
+        isBigDonation: isBig,
+      };
+      break;
+    }
+
     // 🎗️ Charity Campaign
     case 'charitydonation':
     case 'channel.charity_campaign.donate':
@@ -396,20 +423,30 @@ export default function InlineEventMessage({
     >
       {/* Event Header Banner */}
       <div className="flex items-center gap-2 flex-wrap text-xs">
-        {/* Platform Twitch Badge — consistent with standard chat messages */}
-        <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[4px] bg-[#9146FF] shadow-xs select-none shrink-0">
-          <TwitchIcon className="w-2.5 h-2.5 text-white fill-white" />
-        </span>
+        {/* Platform Badge */}
+        {config.isDonation ? (
+          <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[4px] bg-gradient-to-tr from-amber-500 to-orange-500 shadow-xs select-none shrink-0" title="DonationAlerts">
+            <Coins className="w-2.5 h-2.5 text-white" />
+          </span>
+        ) : eventData?.platform === 'kick' || msg?.platform === 'kick' ? (
+          <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[4px] bg-[#53FC18] shadow-xs select-none shrink-0" title="Kick">
+            <KickIcon className="w-2.5 h-2.5 text-black fill-black" />
+          </span>
+        ) : (
+          <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[4px] bg-[#9146FF] shadow-xs select-none shrink-0" title="Twitch">
+            <TwitchIcon className="w-2.5 h-2.5 text-white fill-white" />
+          </span>
+        )}
 
         {/* Timestamp */}
         {settings.showTimestamps && timestamp && (
           <span className="text-[11px] font-mono text-[#6C7082] select-none tabular-nums">
-            [{settings.timestampFormat === 'HH:MM' ? timestamp.slice(0, 5) : timestamp}]
+            [{settings.timestampFormat === 'HH:MM' ? String(timestamp).slice(0, 5) : String(timestamp)}]
           </span>
         )}
 
-        {/* Channel Badge */}
-        {channel && (
+        {/* Channel Badge (if not generic donations) */}
+        {channel && channel !== 'donations' && (
           <span
             style={{
               backgroundColor: chTheme.bg,
@@ -479,7 +516,9 @@ export default function InlineEventMessage({
       {message && (
         <div
           className={`mt-2 p-2.5 rounded-md ${
-            config.isReward
+            config.isDonation
+              ? (config.isBigDonation ? 'bg-[#291024]/95 border border-pink-500/35 text-[#FDF2F8]' : 'bg-[#241a0b]/95 border border-amber-500/35 text-[#FEF3C7]')
+              : config.isReward
               ? 'bg-[#0e1b17]/95 border border-emerald-500/25 text-[#ECFDF5]'
               : config.isHighlighted
               ? 'bg-[#181324]/95 border border-purple-500/25 text-[#F3E8FF]'
@@ -492,7 +531,13 @@ export default function InlineEventMessage({
               <span>Текст заказа:</span>
             </div>
           )}
-          <div className={config.isReward || config.isHighlighted ? 'text-sm font-medium' : 'text-xs'}>
+          {config.isDonation && (
+            <div className={`text-[10px] font-mono ${config.isBigDonation ? 'text-pink-400' : 'text-amber-400'} uppercase tracking-wider mb-1 flex items-center gap-1 font-semibold select-none`}>
+              <Coins className="w-2.5 h-2.5" />
+              <span>Сообщение донатера:</span>
+            </div>
+          )}
+          <div className={config.isDonation || config.isReward || config.isHighlighted ? 'text-sm font-medium' : 'text-xs'}>
             <EmoteText
               text={message}
               emoteMap={emoteMap}

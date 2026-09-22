@@ -8,14 +8,23 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-// ThemesDir returns the themes directory located next to the running executable.
+// ThemesDir returns the themes directory located next to the running executable or current working directory.
 func ThemesDir() string {
 	exe, err := os.Executable()
-	if err != nil {
-		// Fallback to current working directory
+	if err == nil {
+		dir := filepath.Join(filepath.Dir(exe), "themes")
+		if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
+			return dir
+		}
+	}
+	// Fallback to "themes" in current working directory
+	if stat, err := os.Stat("themes"); err == nil && stat.IsDir() {
 		return "themes"
 	}
-	return filepath.Join(filepath.Dir(exe), "themes")
+	if err == nil {
+		return filepath.Join(filepath.Dir(exe), "themes")
+	}
+	return "themes"
 }
 
 // EnsureDefaultTheme creates the default chat theme directory in themes/chat/default.

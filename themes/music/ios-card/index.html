@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now Playing - iOS Card Widget</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/widget/music/assets/ios-card/style.css">
+</head>
+<body>
+  <div id="widget-container" class="ios-container hidden">
+    <!-- Ambient color backlight from album art -->
+    <div class="ios-ambient-glow" id="ambient-glow"></div>
+
+    <!-- Main iOS Squircle Card -->
+    <div class="ios-card" id="card">
+      <!-- Left: Album Cover Art -->
+      <div class="ios-cover-box" id="cover-wrap">
+        <img id="cover-img" src="" alt="Album Art" class="ios-cover-img" style="display: none;" />
+        <div id="cover-fallback" class="ios-cover-fallback">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor">
+            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Right: Track Metadata & Media Controls -->
+      <div class="ios-details">
+        <!-- Header: Source Branding Badge (Spotify / Apple Music / Default) -->
+        <div class="ios-badge-row">
+          <div class="ios-badge" id="app-badge">
+            <!-- Spotify Logo -->
+            <svg id="badge-spotify" class="badge-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.485 17.31c-.216.354-.675.466-1.026.25-2.812-1.718-6.353-2.107-10.523-1.155-.403.092-.803-.162-.895-.565-.092-.403.162-.803.565-.895 4.568-1.043 8.487-.601 11.63 1.32.35.215.462.674.249 1.045zm1.464-3.26c-.272.441-.85.58-1.29.31-3.22-1.978-8.127-2.55-11.936-1.393-.497.151-1.026-.135-1.177-.633-.151-.498.135-1.027.633-1.178 4.356-1.321 9.774-.682 13.46 1.583.44.27.58.85.31 1.291zm.126-3.41c-3.86-2.292-10.23-2.504-13.914-1.385-.591.18-1.22-.162-1.4-.754-.18-.592.162-1.22.754-1.4 4.238-1.286 11.275-1.04 15.698 1.586.531.316.705 1.008.389 1.54-.316.533-1.008.707-1.527.413z"/>
+            </svg>
+            <!-- Apple Music Logo -->
+            <svg id="badge-apple" class="badge-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display: none;">
+              <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm3.5 13.5c-.83 0-1.5-.67-1.5-1.5V9.88l-4 1.15V15c0 .83-.67 1.5-1.5 1.5S7 15.83 7 15s.67-1.5 1.5-1.5c.18 0 .35.03.5.09V9c0-.47.32-.87.78-.97l5-1.43c.41-.12.83.1.95.51.05.15.07.3.07.46v6.43c0 .83-.67 1.5-1.5 1.5z"/>
+            </svg>
+            <!-- Generic Music Note -->
+            <svg id="badge-music" class="badge-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display: none;">
+              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+            </svg>
+          </div>
+
+          <!-- Mini Live Equalizer in header -->
+          <div class="ios-header-vis" id="mini-vis">
+            <span class="vis-bar"></span>
+            <span class="vis-bar"></span>
+            <span class="vis-bar"></span>
+          </div>
+        </div>
+
+        <!-- Typography: Title, Artist, Album -->
+        <div class="ios-typography">
+          <div class="ios-title-wrap" id="title-wrap">
+            <div class="ios-track-title" id="track-title">Ожидание трека...</div>
+          </div>
+          <div class="ios-track-artist" id="track-artist">—</div>
+          <div class="ios-track-album" id="track-album" style="display: none;">—</div>
+        </div>
+
+        <!-- Media Playback Controls Bar -->
+        <div class="ios-controls-bar">
+          <!-- Step Backward (Previous) -->
+          <div class="ios-btn ios-btn-secondary" title="Previous">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+              <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+            </svg>
+          </div>
+
+          <!-- Play / Pause Center Button -->
+          <div class="ios-btn ios-btn-play" id="play-pause-btn" title="Play/Pause">
+            <!-- Pause Icon (when playing) -->
+            <svg id="icon-pause" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+            </svg>
+            <!-- Play Icon (when paused) -->
+            <svg id="icon-play" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="display: none;">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </div>
+
+          <!-- Step Forward (Next) -->
+          <div class="ios-btn ios-btn-secondary" title="Next">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+              <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('widget-container');
+    const ambientGlow = document.getElementById('ambient-glow');
+    const coverImg = document.getElementById('cover-img');
+    const coverFallback = document.getElementById('cover-fallback');
+    const coverWrap = document.getElementById('cover-wrap');
+    const titleEl = document.getElementById('track-title');
+    const titleWrap = document.getElementById('title-wrap');
+    const artistEl = document.getElementById('track-artist');
+    const albumEl = document.getElementById('track-album');
+    const iconPause = document.getElementById('icon-pause');
+    const iconPlay = document.getElementById('icon-play');
+    const miniVis = document.getElementById('mini-vis');
+    const badgeSpotify = document.getElementById('badge-spotify');
+    const badgeApple = document.getElementById('badge-apple');
+    const badgeMusic = document.getElementById('badge-music');
+
+    let currentTrackKey = '';
+    let hideTimeout = null;
+
+    let config = {
+      scale: 100,
+      showCover: true,
+      showArtist: true,
+      showVisualizer: true,
+      hideOnPause: true,
+      pauseDelay: 3,
+      accentColor: 'emerald',
+      badge: 'auto', // 'auto', 'spotify', 'apple', 'music'
+      ambientGlow: true
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+    if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+    if (urlParams.has('badge')) config.badge = urlParams.get('badge').toLowerCase();
+    if (urlParams.has('glow')) config.ambientGlow = urlParams.get('glow') !== '0' && urlParams.get('glow') !== 'false';
+
+    const ACCENT_COLORS = {
+      emerald: { hex: '#10B981', glow: 'rgba(16, 185, 129, 0.45)' },
+      blue:    { hex: '#3B82F6', glow: 'rgba(59, 130, 246, 0.45)' },
+      purple:  { hex: '#9146FF', glow: 'rgba(145, 70, 255, 0.45)' },
+      pink:    { hex: '#EC4899', glow: 'rgba(236, 72, 153, 0.45)' },
+      amber:   { hex: '#F59E0B', glow: 'rgba(245, 158, 11, 0.45)' },
+      white:   { hex: '#F3F4F6', glow: 'rgba(243, 244, 246, 0.45)' }
+    };
+
+    function applyConfig(cfg) {
+      if (!cfg) return;
+      config = { ...config, ...cfg };
+      if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+      if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+      if (urlParams.has('badge')) config.badge = urlParams.get('badge').toLowerCase();
+
+      document.documentElement.style.setProperty('--card-scale', (config.scale || 100) / 100);
+      const acc = ACCENT_COLORS[config.accentColor] || ACCENT_COLORS.emerald;
+      document.documentElement.style.setProperty('--accent-color', acc.hex);
+      document.documentElement.style.setProperty('--accent-glow', acc.glow);
+
+      if (coverWrap) coverWrap.style.display = config.showCover !== false ? 'block' : 'none';
+      if (artistEl) artistEl.style.display = config.showArtist !== false ? 'block' : 'none';
+      if (miniVis) miniVis.style.display = config.showVisualizer !== false ? 'flex' : 'none';
+      if (ambientGlow) ambientGlow.style.display = config.ambientGlow !== false ? 'block' : 'none';
+    }
+
+    applyConfig(config);
+
+    function updateBadge(source) {
+      const s = (source || '').toLowerCase();
+      let badgeType = config.badge;
+      if (!badgeType || badgeType === 'auto') {
+        if (s.includes('spotify')) {
+          badgeType = 'spotify';
+        } else if (s.includes('apple') || s.includes('itunes')) {
+          badgeType = 'apple';
+        } else {
+          badgeType = 'spotify'; // default stylish streaming badge
+        }
+      }
+
+      badgeSpotify.style.display = badgeType === 'spotify' ? 'block' : 'none';
+      badgeApple.style.display = badgeType === 'apple' ? 'block' : 'none';
+      badgeMusic.style.display = (badgeType !== 'spotify' && badgeType !== 'apple') ? 'block' : 'none';
+    }
+
+    function updateTrack(data) {
+      if (!data) return;
+      const isPlaying = data.status === 'playing';
+      const hasTitle = data.title && data.title.trim().length > 0;
+
+      if (!hasTitle || (!isPlaying && data.status !== 'paused')) {
+        hideWidget();
+        return;
+      }
+
+      const trackKey = (data.title || '') + '|' + (data.artist || '');
+      const isNew = trackKey !== currentTrackKey;
+      currentTrackKey = trackKey;
+
+      titleEl.textContent = data.title || 'Без названия';
+      artistEl.textContent = data.artist || (data.album || 'Неизвестный исполнитель');
+
+      if (data.album && data.album !== data.title) {
+        albumEl.textContent = data.album;
+        albumEl.style.display = 'block';
+      } else {
+        albumEl.style.display = 'none';
+      }
+
+      // Dynamic source badge
+      updateBadge(data.source);
+
+      // Check text overflow for marquee animation
+      titleEl.classList.remove('marquee');
+      if (titleEl.scrollWidth > titleWrap.clientWidth + 4) {
+        titleEl.classList.add('marquee');
+      }
+
+      // Handle Album Cover Art
+      if (data.thumbnail && data.thumbnail.length > 50) {
+        coverImg.src = data.thumbnail;
+        coverImg.style.display = 'block';
+        coverFallback.style.display = 'none';
+        // Set dynamic ambient color glow
+        ambientGlow.style.backgroundImage = 'url("' + data.thumbnail + '")';
+      } else {
+        coverImg.style.display = 'none';
+        coverFallback.style.display = 'flex';
+        ambientGlow.style.backgroundImage = 'none';
+      }
+
+      // Playback state (Play vs Pause icon)
+      if (isPlaying) {
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+        container.classList.remove('paused');
+        iconPause.style.display = 'block';
+        iconPlay.style.display = 'none';
+        showWidget(isNew);
+      } else {
+        container.classList.add('paused');
+        iconPause.style.display = 'none';
+        iconPlay.style.display = 'block';
+
+        if (config.hideOnPause) {
+          if (!hideTimeout) {
+            const delay = Math.max(config.pauseDelay || 3, 0) * 1000;
+            hideTimeout = setTimeout(hideWidget, delay);
+          }
+        }
+      }
+    }
+
+    function showWidget(animate) {
+      container.classList.remove('hidden');
+      if (animate) {
+        container.classList.remove('animate-in');
+        void container.offsetWidth; // force reflow
+        container.classList.add('animate-in');
+      }
+    }
+
+    function hideWidget() {
+      container.classList.add('hidden');
+    }
+
+    function connectSSE() {
+      const es = new EventSource('/widget/music/events');
+      es.addEventListener('track', (e) => {
+        try { updateTrack(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('config', (e) => {
+        try { applyConfig(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('reload', () => window.location.reload());
+      es.onerror = () => {
+        setTimeout(connectSSE, 3000);
+        es.close();
+      };
+    }
+
+    connectSSE();
+  </script>
+</body>
+</html>

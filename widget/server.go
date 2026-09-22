@@ -17,6 +17,7 @@ import (
 // WidgetMessage is the payload sent over SSE to the OBS browser source.
 type WidgetMessage struct {
 	Type        string            `json:"type"` // "message" | "reward" | "clear"
+	Platform    string            `json:"platform,omitempty"` // "twitch" | "kick"
 	Author      string            `json:"author,omitempty"`
 	AvatarURL   string            `json:"avatarUrl,omitempty"`
 	Color       string            `json:"color,omitempty"`
@@ -31,6 +32,11 @@ type WidgetMessage struct {
 	Channel     string            `json:"channel,omitempty"`
 	Timestamp   string            `json:"timestamp"`
 	IsFirstMsg  bool              `json:"isFirstMsg,omitempty"`
+	Amount      float64           `json:"amount,omitempty"`
+	Currency    string            `json:"currency,omitempty"`
+	IsEvent     bool              `json:"isEvent,omitempty"`
+	EventType   string            `json:"eventType,omitempty"`
+	Goal        interface{}       `json:"goal,omitempty"`
 }
 
 // sseClient represents a connected OBS browser.
@@ -59,6 +65,9 @@ type WidgetServer struct {
 
 	recentMessagesMu sync.RWMutex
 	recentMessages   []WidgetMessage
+
+	currentGoalMu sync.RWMutex
+	currentGoal   map[string]interface{}
 
 	stopChan chan struct{}
 }
@@ -108,6 +117,18 @@ func (ws *WidgetServer) Start() {
 		log.Printf("[Widget] Failed to create default music theme: %v", err)
 	}
 
+	if err := EnsureDefaultFollowerTheme(ws.themesDir); err != nil {
+		log.Printf("[Widget] Failed to create default follower theme: %v", err)
+	}
+
+	if err := EnsureDefaultDonationTheme(ws.themesDir); err != nil {
+		log.Printf("[Widget] Failed to create default donation theme: %v", err)
+	}
+
+	if err := EnsureDefaultGoalTheme(ws.themesDir); err != nil {
+		log.Printf("[Widget] Failed to create default goal theme: %v", err)
+	}
+
 	mux := http.NewServeMux()
 
 	// Chat widget endpoints (support both /widget/chat and /widget)
@@ -127,6 +148,38 @@ func (ws *WidgetServer) Start() {
 	mux.HandleFunc("/widget/music/assets/", ws.handleMusicAssets)
 	mux.HandleFunc("/widget/music/themes", ws.handleMusicThemesList)
 	mux.HandleFunc("/widget/music/test", ws.handleMusicTest)
+
+	// Follower alert widget endpoints (with aliases for both singular and plural)
+	mux.HandleFunc("/widget/follower", ws.handleFollower)
+	mux.HandleFunc("/widget/follower/", ws.handleFollower)
+	mux.HandleFunc("/widget/followers", ws.handleFollower)
+	mux.HandleFunc("/widget/followers/", ws.handleFollower)
+	mux.HandleFunc("/widget/follower/assets/", ws.handleFollowerAssets)
+	mux.HandleFunc("/widget/followers/assets/", ws.handleFollowerAssets)
+	mux.HandleFunc("/widget/follower/themes", ws.handleFollowerThemesList)
+	mux.HandleFunc("/widget/followers/themes", ws.handleFollowerThemesList)
+	mux.HandleFunc("/widget/follower/test", ws.handleFollowerTest)
+	mux.HandleFunc("/widget/followers/test", ws.handleFollowerTest)
+
+	// Donation alert widget endpoints
+	mux.HandleFunc("/widget/donation", ws.handleDonation)
+	mux.HandleFunc("/widget/donation/", ws.handleDonation)
+	mux.HandleFunc("/widget/donations", ws.handleDonation)
+	mux.HandleFunc("/widget/donations/", ws.handleDonation)
+	mux.HandleFunc("/widget/donation/assets/", ws.handleDonationAssets)
+	mux.HandleFunc("/widget/donations/assets/", ws.handleDonationAssets)
+	mux.HandleFunc("/widget/donation/test", ws.handleDonationTest)
+	mux.HandleFunc("/widget/donations/test", ws.handleDonationTest)
+
+	// Goal widget endpoints
+	mux.HandleFunc("/widget/goal", ws.handleGoal)
+	mux.HandleFunc("/widget/goal/", ws.handleGoal)
+	mux.HandleFunc("/widget/goals", ws.handleGoal)
+	mux.HandleFunc("/widget/goals/", ws.handleGoal)
+	mux.HandleFunc("/widget/goal/assets/", ws.handleGoalAssets)
+	mux.HandleFunc("/widget/goals/assets/", ws.handleGoalAssets)
+	mux.HandleFunc("/widget/goal/data", ws.handleGoalData)
+	mux.HandleFunc("/widget/goal/test", ws.handleGoalTest)
 
 	ws.server = &http.Server{
 		Addr:    fmt.Sprintf(":%d", ws.port),
@@ -152,6 +205,57 @@ func (ws *WidgetServer) Stop() {
 	}
 }
 
+// Target defines the client group to broadcast an SSE event to.
+type Target string
+
+const (
+	TargetChat  Target = "chat"
+	TargetMusic Target = "music"
+	TargetAll   Target = "all"
+)
+
+// Emit serializes payload and broadcasts an SSE event frame to connected clients in target pool.
+func (ws *WidgetServer) Emit(target Target, event string, payload any) error {
+	var data []byte
+	if b, ok := payload.([]byte); ok {
+		data = b
+	} else if s, ok := payload.(string); ok {
+		data = []byte(s)
+	} else {
+		var err error
+		data, err = json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("failed to marshal SSE payload: %w", err)
+		}
+	}
+
+	frame := []byte(fmt.Sprintf("event: %s\ndata: %s\n\n", event, string(data)))
+
+	switch target {
+	case TargetChat:
+		ws.sendToPool(ws.clients, &ws.clientsMu, frame)
+	case TargetMusic:
+		ws.sendToPool(ws.musicClients, &ws.musicClientsMu, frame)
+	case TargetAll:
+		ws.sendToPool(ws.clients, &ws.clientsMu, frame)
+		ws.sendToPool(ws.musicClients, &ws.musicClientsMu, frame)
+	default:
+		return fmt.Errorf("unknown broadcast target: %s", target)
+	}
+	return nil
+}
+
+func (ws *WidgetServer) sendToPool(clients map[*sseClient]struct{}, mu *sync.RWMutex, frame []byte) {
+	mu.RLock()
+	defer mu.RUnlock()
+	for c := range clients {
+		select {
+		case c.send <- frame:
+		default:
+		}
+	}
+}
+
 // Broadcast sends a chat message to all connected SSE clients.
 func (ws *WidgetServer) Broadcast(msg WidgetMessage) {
 	if msg.Timestamp == "" {
@@ -174,21 +278,7 @@ func (ws *WidgetServer) Broadcast(msg WidgetMessage) {
 	}
 	ws.recentMessagesMu.Unlock()
 
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return
-	}
-
-	payload := []byte("event: message\ndata: " + string(data) + "\n\n")
-
-	ws.clientsMu.RLock()
-	defer ws.clientsMu.RUnlock()
-	for c := range ws.clients {
-		select {
-		case c.send <- payload:
-		default:
-		}
-	}
+	_ = ws.Emit(TargetChat, "message", msg)
 }
 
 // BroadcastMusicConfig sends updated music widget config to all connected music SSE clients.
@@ -197,40 +287,12 @@ func (ws *WidgetServer) BroadcastMusicConfig(cfg map[string]interface{}) {
 	ws.currentMusicConfig = cfg
 	ws.musicClientsMu.Unlock()
 
-	data, err := json.Marshal(cfg)
-	if err != nil {
-		return
-	}
-
-	payload := []byte("event: config\ndata: " + string(data) + "\n\n")
-
-	ws.musicClientsMu.RLock()
-	defer ws.musicClientsMu.RUnlock()
-	for c := range ws.musicClients {
-		select {
-		case c.send <- payload:
-		default:
-		}
-	}
+	_ = ws.Emit(TargetMusic, "config", cfg)
 }
 
 // BroadcastMusicTrack sends a track update to all connected music SSE clients.
 func (ws *WidgetServer) BroadcastMusicTrack(track media.TrackInfo) {
-	data, err := json.Marshal(track)
-	if err != nil {
-		return
-	}
-
-	payload := []byte("event: track\ndata: " + string(data) + "\n\n")
-
-	ws.musicClientsMu.RLock()
-	defer ws.musicClientsMu.RUnlock()
-	for c := range ws.musicClients {
-		select {
-		case c.send <- payload:
-		default:
-		}
-	}
+	_ = ws.Emit(TargetMusic, "track", track)
 }
 
 // BroadcastAvatarUpdate sends an avatar update event to all connected SSE clients.
@@ -238,47 +300,15 @@ func (ws *WidgetServer) BroadcastAvatarUpdate(user, avatarURL string) {
 	if user == "" || avatarURL == "" {
 		return
 	}
-	data, err := json.Marshal(map[string]string{
+	_ = ws.Emit(TargetChat, "avatar_update", map[string]string{
 		"user":      user,
 		"avatarUrl": avatarURL,
 	})
-	if err != nil {
-		return
-	}
-
-	payload := []byte("event: avatar_update\ndata: " + string(data) + "\n\n")
-
-	ws.clientsMu.RLock()
-	defer ws.clientsMu.RUnlock()
-	for c := range ws.clients {
-		select {
-		case c.send <- payload:
-		default:
-		}
-	}
 }
 
 // broadcastReload tells all connected clients to reload the page (theme file changed).
 func (ws *WidgetServer) broadcastReload() {
-	payload := []byte("event: reload\ndata: {}\n\n")
-
-	ws.clientsMu.RLock()
-	for c := range ws.clients {
-		select {
-		case c.send <- payload:
-		default:
-		}
-	}
-	ws.clientsMu.RUnlock()
-
-	ws.musicClientsMu.RLock()
-	for c := range ws.musicClients {
-		select {
-		case c.send <- payload:
-		default:
-		}
-	}
-	ws.musicClientsMu.RUnlock()
+	_ = ws.Emit(TargetAll, "reload", map[string]struct{}{})
 }
 
 // Port returns the configured port.
@@ -309,15 +339,17 @@ func (ws *WidgetServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, ": connected\n\n")
 	flusher.Flush()
 
-	// Replay recent chat messages immediately on connection so OBS doesn't start with a blank screen
-	ws.recentMessagesMu.RLock()
-	for _, recent := range ws.recentMessages {
-		if d, err := json.Marshal(recent); err == nil {
-			_, _ = fmt.Fprintf(w, "event: message\ndata: %s\n\n", string(d))
+	// Replay recent chat messages immediately on connection unless replay=false is requested
+	if r.URL.Query().Get("replay") != "false" {
+		ws.recentMessagesMu.RLock()
+		for _, recent := range ws.recentMessages {
+			if d, err := json.Marshal(recent); err == nil {
+				_, _ = fmt.Fprintf(w, "event: message\ndata: %s\n\n", string(d))
+			}
 		}
+		ws.recentMessagesMu.RUnlock()
+		flusher.Flush()
 	}
-	ws.recentMessagesMu.RUnlock()
-	flusher.Flush()
 
 	client := &sseClient{
 		send:  make(chan []byte, 32),
@@ -574,6 +606,311 @@ func (ws *WidgetServer) handleMusicThemesList(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(themes)
+}
+
+func (ws *WidgetServer) handleFollower(w http.ResponseWriter, r *http.Request) {
+	theme := r.URL.Query().Get("theme")
+	if theme == "" {
+		theme = "default"
+	}
+	theme = filepath.Base(theme)
+
+	indexPath := filepath.Join(ws.themesDir, "follower", theme, "index.html")
+	if _, err := os.Stat(indexPath); err == nil {
+		http.ServeFile(w, r, indexPath)
+		return
+	}
+	defaultPath := filepath.Join(ws.themesDir, "follower", "default", "index.html")
+	if _, err := os.Stat(defaultPath); err == nil {
+		http.ServeFile(w, r, defaultPath)
+		return
+	}
+
+	// In-memory fallback if file does not exist on disk
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(defaultFollowerHTML))
+}
+
+func (ws *WidgetServer) handleFollowerAssets(w http.ResponseWriter, r *http.Request) {
+	// Support both /widget/follower/assets/... and /widget/followers/assets/...
+	relPath := strings.TrimPrefix(r.URL.Path, "/widget/followers/assets/")
+	relPath = strings.TrimPrefix(relPath, "/widget/follower/assets/")
+	parts := strings.Split(relPath, "/")
+	var filePath string
+	if len(parts) == 1 {
+		filePath = filepath.Join(ws.themesDir, "follower", "default", filepath.Base(parts[0]))
+	} else {
+		theme := filepath.Base(parts[0])
+		file := filepath.Base(parts[1])
+		filePath = filepath.Join(ws.themesDir, "follower", theme, file)
+	}
+
+	if _, err := os.Stat(filePath); err == nil {
+		http.ServeFile(w, r, filePath)
+		return
+	}
+
+	// Try default theme directory fallback
+	defaultPath := filepath.Join(ws.themesDir, "follower", "default", filepath.Base(relPath))
+	if _, err := os.Stat(defaultPath); err == nil {
+		http.ServeFile(w, r, defaultPath)
+		return
+	}
+
+	// In-memory fallback for style.css
+	if strings.HasSuffix(relPath, "style.css") {
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		_, _ = w.Write([]byte(defaultFollowerCSS))
+		return
+	}
+
+	http.NotFound(w, r)
+}
+
+func (ws *WidgetServer) handleFollowerThemesList(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	themes := ws.GetFollowerThemes()
+	_ = json.NewEncoder(w).Encode(themes)
+}
+
+func (ws *WidgetServer) GetFollowerThemes() []string {
+	themes := []string{}
+	followerDir := filepath.Join(ws.themesDir, "follower")
+	if entries, err := os.ReadDir(followerDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				themes = append(themes, e.Name())
+			}
+		}
+	}
+	if len(themes) == 0 {
+		themes = append(themes, "default")
+	}
+	return themes
+}
+
+func (ws *WidgetServer) handleFollowerTest(w http.ResponseWriter, r *http.Request) {
+	testFollow := WidgetMessage{
+		Type:      "follow",
+		Author:    "Alex_Streamer",
+		AvatarURL: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+		Text:      "Alex_Streamer отслеживает канал!",
+		Color:     "#10B981",
+		Timestamp: time.Now().Format("15:04"),
+	}
+	ws.Broadcast(testFollow)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+func (ws *WidgetServer) handleDonation(w http.ResponseWriter, r *http.Request) {
+	theme := r.URL.Query().Get("theme")
+	if theme == "" {
+		theme = "default"
+	}
+	theme = filepath.Base(theme)
+
+	indexPath := filepath.Join(ws.themesDir, "donation", theme, "index.html")
+	if _, err := os.Stat(indexPath); err == nil {
+		http.ServeFile(w, r, indexPath)
+		return
+	}
+	defaultPath := filepath.Join(ws.themesDir, "donation", "default", "index.html")
+	if _, err := os.Stat(defaultPath); err == nil {
+		http.ServeFile(w, r, defaultPath)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(defaultDonationHTML))
+}
+
+func (ws *WidgetServer) handleDonationAssets(w http.ResponseWriter, r *http.Request) {
+	relPath := strings.TrimPrefix(r.URL.Path, "/widget/donations/assets/")
+	relPath = strings.TrimPrefix(relPath, "/widget/donation/assets/")
+	parts := strings.Split(relPath, "/")
+	var filePath string
+	if len(parts) == 1 {
+		filePath = filepath.Join(ws.themesDir, "donation", "default", filepath.Base(parts[0]))
+	} else {
+		theme := filepath.Base(parts[0])
+		file := filepath.Base(parts[1])
+		filePath = filepath.Join(ws.themesDir, "donation", theme, file)
+	}
+
+	if _, err := os.Stat(filePath); err == nil {
+		http.ServeFile(w, r, filePath)
+		return
+	}
+
+	defaultPath := filepath.Join(ws.themesDir, "donation", "default", filepath.Base(relPath))
+	if _, err := os.Stat(defaultPath); err == nil {
+		http.ServeFile(w, r, defaultPath)
+		return
+	}
+
+	if strings.HasSuffix(relPath, "style.css") {
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		_, _ = w.Write([]byte(defaultDonationCSS))
+		return
+	}
+
+	http.NotFound(w, r)
+}
+
+func (ws *WidgetServer) handleGoal(w http.ResponseWriter, r *http.Request) {
+	theme := r.URL.Query().Get("theme")
+	if theme == "" {
+		theme = "default"
+	}
+	theme = filepath.Base(theme)
+
+	indexPath := filepath.Join(ws.themesDir, "goal", theme, "index.html")
+	if _, err := os.Stat(indexPath); err == nil {
+		http.ServeFile(w, r, indexPath)
+		return
+	}
+	defaultPath := filepath.Join(ws.themesDir, "goal", "default", "index.html")
+	if _, err := os.Stat(defaultPath); err == nil {
+		http.ServeFile(w, r, defaultPath)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(defaultGoalHTML))
+}
+
+func (ws *WidgetServer) handleGoalAssets(w http.ResponseWriter, r *http.Request) {
+	relPath := strings.TrimPrefix(r.URL.Path, "/widget/goals/assets/")
+	relPath = strings.TrimPrefix(relPath, "/widget/goal/assets/")
+	parts := strings.Split(relPath, "/")
+	var filePath string
+	if len(parts) == 1 {
+		filePath = filepath.Join(ws.themesDir, "goal", "default", filepath.Base(parts[0]))
+	} else {
+		theme := filepath.Base(parts[0])
+		file := filepath.Base(parts[1])
+		filePath = filepath.Join(ws.themesDir, "goal", theme, file)
+	}
+
+	if _, err := os.Stat(filePath); err == nil {
+		http.ServeFile(w, r, filePath)
+		return
+	}
+
+	defaultPath := filepath.Join(ws.themesDir, "goal", "default", filepath.Base(relPath))
+	if _, err := os.Stat(defaultPath); err == nil {
+		http.ServeFile(w, r, defaultPath)
+		return
+	}
+
+	if strings.HasSuffix(relPath, "style.css") {
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		_, _ = w.Write([]byte(defaultGoalCSS))
+		return
+	}
+
+	http.NotFound(w, r)
+}
+
+func (ws *WidgetServer) handleGoalData(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	ws.currentGoalMu.RLock()
+	data := ws.currentGoal
+	ws.currentGoalMu.RUnlock()
+
+	if data == nil {
+		data = map[string]interface{}{
+			"title":         "Сбор средств",
+			"currentAmount": 0.0,
+			"targetAmount":  10000.0,
+			"currency":      "RUB",
+			"percent":       0.0,
+		}
+	}
+	_ = json.NewEncoder(w).Encode(data)
+}
+
+func (ws *WidgetServer) handleDonationTest(w http.ResponseWriter, r *http.Request) {
+	ws.BroadcastDonation("Доброжелатель", 500, "RUB", "Удачи на стриме! Отличный контент ✨")
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+func (ws *WidgetServer) handleGoalTest(w http.ResponseWriter, r *http.Request) {
+	ws.BroadcastGoal("На новый микрофон", 3500, 10000, "RUB")
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+func (ws *WidgetServer) SetCurrentGoal(title string, current, target float64, currency string) {
+	pct := 0.0
+	if target > 0 {
+		pct = (current / target) * 100.0
+		if pct > 100.0 {
+			pct = 100.0
+		}
+	}
+	ws.currentGoalMu.Lock()
+	ws.currentGoal = map[string]interface{}{
+		"title":         title,
+		"currentAmount": current,
+		"targetAmount":  target,
+		"currency":      currency,
+		"percent":       pct,
+	}
+	ws.currentGoalMu.Unlock()
+}
+
+// GetCurrentGoal returns the cached goal information map
+func (ws *WidgetServer) GetCurrentGoal() map[string]interface{} {
+	ws.currentGoalMu.RLock()
+	defer ws.currentGoalMu.RUnlock()
+	if ws.currentGoal == nil {
+		return map[string]interface{}{
+			"title":         "",
+			"currentAmount": 0.0,
+			"targetAmount":  0.0,
+			"currency":      "RUB",
+			"percent":       0.0,
+		}
+	}
+	return ws.currentGoal
+}
+
+func (ws *WidgetServer) BroadcastDonation(author string, amount float64, currency, message string) {
+	cur := currency
+	if cur == "" {
+		cur = "RUB"
+	}
+	msg := WidgetMessage{
+		Type:      "donation",
+		IsEvent:   true,
+		EventType: "donation",
+		Author:    author,
+		Amount:    amount,
+		Currency:  cur,
+		Text:      message,
+		Timestamp: time.Now().Format("15:04"),
+	}
+	ws.Broadcast(msg)
+}
+
+func (ws *WidgetServer) BroadcastGoal(title string, current, target float64, currency string) {
+	ws.SetCurrentGoal(title, current, target, currency)
+	msg := WidgetMessage{
+		Type:      "goal",
+		IsEvent:   true,
+		EventType: "goal_update",
+		Goal: map[string]interface{}{
+			"title":         title,
+			"currentAmount": current,
+			"targetAmount":  target,
+			"currency":      currency,
+		},
+		Timestamp: time.Now().Format("15:04"),
+	}
+	ws.Broadcast(msg)
 }
 
 // addCORSHeaders wraps a handler to allow any origin (OBS uses file:// or null origin).

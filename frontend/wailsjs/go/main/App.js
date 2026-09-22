@@ -10,20 +10,44 @@ export function DisconnectChannel() {
   return window['go']['main']['App']['DisconnectChannel']();
 }
 
+export function GetCurrentGoal() {
+  return window['go']['main']['App']['GetCurrentGoal']();
+}
+
 export function GetCurrentTrack() {
   return window['go']['main']['App']['GetCurrentTrack']();
+}
+
+export function GetDonationWidgetURL() {
+  return window['go']['main']['App']['GetDonationWidgetURL']();
 }
 
 export function GetEmotes() {
   return window['go']['main']['App']['GetEmotes']();
 }
 
+export function GetFollowerWidgetThemes() {
+  return window['go']['main']['App']['GetFollowerWidgetThemes']();
+}
+
+export function GetFollowerWidgetURL() {
+  return window['go']['main']['App']['GetFollowerWidgetURL']();
+}
+
 export function GetGlobalBadges() {
   return window['go']['main']['App']['GetGlobalBadges']();
 }
 
+export function GetGoalWidgetURL() {
+  return window['go']['main']['App']['GetGoalWidgetURL']();
+}
+
 export function GetJoinedChannels() {
   return window['go']['main']['App']['GetJoinedChannels']();
+}
+
+export function GetJoinedKickChannels() {
+  return window['go']['main']['App']['GetJoinedKickChannels']();
 }
 
 export function GetMusicWidgetThemes() {
@@ -40,6 +64,10 @@ export function GetSettings() {
 
 export function GetTTSVoices() {
   return window['go']['main']['App']['GetTTSVoices']();
+}
+
+export function GetTwitchAuthStatus() {
+  return window['go']['main']['App']['GetTwitchAuthStatus']();
 }
 
 export function GetWidgetThemes() {
@@ -62,8 +90,16 @@ export function JoinChannel(arg1) {
   return window['go']['main']['App']['JoinChannel'](arg1);
 }
 
+export function JoinKickChannel(arg1) {
+  return window['go']['main']['App']['JoinKickChannel'](arg1);
+}
+
 export function LeaveChannel(arg1) {
   return window['go']['main']['App']['LeaveChannel'](arg1);
+}
+
+export function LeaveKickChannel(arg1) {
+  return window['go']['main']['App']['LeaveKickChannel'](arg1);
 }
 
 export function LogoutTwitch() {
@@ -72,6 +108,18 @@ export function LogoutTwitch() {
 
 export function OpenAndImportWireGuardConf() {
   return window['go']['main']['App']['OpenAndImportWireGuardConf']();
+}
+
+export function OpenDonationThemesDir() {
+  return window['go']['main']['App']['OpenDonationThemesDir']();
+}
+
+export function OpenFollowerThemesDir() {
+  return window['go']['main']['App']['OpenFollowerThemesDir']();
+}
+
+export function OpenGoalThemesDir() {
+  return window['go']['main']['App']['OpenGoalThemesDir']();
 }
 
 export function OpenMusicThemesDir() {
@@ -98,12 +146,24 @@ export function SendTestChatMessage() {
   return window['go']['main']['App']['SendTestChatMessage']();
 }
 
+export function SendTestDonation(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SendTestDonation'](arg1, arg2, arg3, arg4);
+}
+
 export function SendTestFollowMessage() {
   return window['go']['main']['App']['SendTestFollowMessage']();
 }
 
+export function SendTestGoal(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SendTestGoal'](arg1, arg2, arg3, arg4);
+}
+
 export function SendTestMusicTrack() {
   return window['go']['main']['App']['SendTestMusicTrack']();
+}
+
+export function SetDAToken(arg1) {
+  return window['go']['main']['App']['SetDAToken'](arg1);
 }
 
 export function SetGameMode(arg1) {
@@ -116,6 +176,10 @@ export function SpeakText(arg1, arg2) {
 
 export function StartTwitchAuth() {
   return window['go']['main']['App']['StartTwitchAuth']();
+}
+
+export function TestDAConnection(arg1) {
+  return window['go']['main']['App']['TestDAConnection'](arg1);
 }
 
 export function TestProxyConnection(arg1, arg2, arg3, arg4, arg5) {

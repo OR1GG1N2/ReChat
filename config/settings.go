@@ -80,10 +80,23 @@ type AppSettings struct {
 	MusicPauseDelay     int               `json:"musicPauseDelay"`     // seconds before fading out on pause
 	MusicScale          int               `json:"musicScale"`          // scale percent (e.g. 100)
 	MusicBgOpacity      int               `json:"musicBgOpacity"`      // background opacity 0-100 (default 85)
+	// DonationAlerts integration config
+	DAEnabled           bool              `json:"daEnabled"`           // enable DonationAlerts integration
+	DAToken             string            `json:"daToken"`             // personal connection token
+	DAShowInChat        bool              `json:"daShowInChat"`        // show donation cards in chat
+	DAMinChatAmount     float64           `json:"daMinChatAmount"`     // minimum donation amount to display in chat (0 = all)
+	DATTS               bool              `json:"daTTS"`               // read donation messages with TTS
+	DAMinTTSAmount      float64           `json:"daMinTTSAmount"`      // minimum donation amount to read with TTS (0 = all)
+	DAShowGoalBar       bool              `json:"daShowGoalBar"`       // show goal progress bar in chat window
+	// Kick integration config
+	KickEnabled         bool              `json:"kickEnabled"`         // enable Kick chat integration
+	KickChannels        []string          `json:"kickChannels"`        // list of joined Kick channels
 }
 
 func DefaultSettings() AppSettings {
 	return AppSettings{
+		KickEnabled:         true,
+		KickChannels:        []string{},
 		DefaultChannel:      "",
 		FontSize:            14,
 		ShowTimestamps:      true,
@@ -143,6 +156,13 @@ func DefaultSettings() AppSettings {
 		MusicPauseDelay:     3,
 		MusicScale:          100,
 		MusicBgOpacity:      85,
+		DAEnabled:           true,
+		DAToken:             "",
+		DAShowInChat:        true,
+		DAMinChatAmount:     0,
+		DATTS:               true,
+		DAMinTTSAmount:      0,
+		DAShowGoalBar:       true,
 	}
 }
 
@@ -382,6 +402,31 @@ func LoadSettings() AppSettings {
 				if v, err := strconv.Atoi(val); err == nil && v >= 0 && v <= 100 {
 					s.MusicBgOpacity = v
 				}
+			case "daEnabled":
+				s.DAEnabled = (val == "true")
+			case "daToken":
+				s.DAToken = val
+			case "daShowInChat":
+				s.DAShowInChat = (val == "true")
+			case "daMinChatAmount":
+				if v, err := strconv.ParseFloat(val, 64); err == nil && v >= 0 {
+					s.DAMinChatAmount = v
+				}
+			case "daTTS":
+				s.DATTS = (val == "true")
+			case "daMinTTSAmount":
+				if v, err := strconv.ParseFloat(val, 64); err == nil && v >= 0 {
+					s.DAMinTTSAmount = v
+				}
+			case "daShowGoalBar":
+				s.DAShowGoalBar = (val == "true")
+			case "kickEnabled":
+				s.KickEnabled = (val == "true")
+			case "kickChannels":
+				var kChans []string
+				if err := json.Unmarshal([]byte(val), &kChans); err == nil {
+					s.KickChannels = kChans
+				}
 			}
 		}
 	}
@@ -409,6 +454,7 @@ func SaveSettings(s AppSettings) error {
 	defer stmt.Close()
 
 	chansJSON, _ := json.Marshal(s.JoinedChannels)
+	kChansJSON, _ := json.Marshal(s.KickChannels)
 	colorsJSON, _ := json.Marshal(s.ChannelColors)
 	ignoredUsersJSON, _ := json.Marshal(s.IgnoredUsers)
 
@@ -479,6 +525,15 @@ func SaveSettings(s AppSettings) error {
 		"musicPauseDelay":     strconv.Itoa(s.MusicPauseDelay),
 		"musicScale":          strconv.Itoa(s.MusicScale),
 		"musicBgOpacity":      strconv.Itoa(s.MusicBgOpacity),
+		"daEnabled":           strconv.FormatBool(s.DAEnabled),
+		"daToken":             s.DAToken,
+		"daShowInChat":        strconv.FormatBool(s.DAShowInChat),
+		"daMinChatAmount":     strconv.FormatFloat(s.DAMinChatAmount, 'f', 2, 64),
+		"daTTS":               strconv.FormatBool(s.DATTS),
+		"daMinTTSAmount":      strconv.FormatFloat(s.DAMinTTSAmount, 'f', 2, 64),
+		"daShowGoalBar":       strconv.FormatBool(s.DAShowGoalBar),
+		"kickEnabled":         strconv.FormatBool(s.KickEnabled),
+		"kickChannels":        string(kChansJSON),
 	}
 
 	for k, v := range pairs {

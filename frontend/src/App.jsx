@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import {
   GetJoinedChannels,
@@ -11,10 +11,12 @@ import {
   SendMessage,
   ToggleGameMode,
   IsGameMode,
+  GetCurrentGoal,
 } from '../wailsjs/go/main/App';
 import SettingsView from './components/SettingsView';
 import CustomTitleBar from './components/CustomTitleBar';
 import ChannelBar from './components/ChannelBar';
+import GoalTrackerBar from './components/GoalTrackerBar';
 import ChatMessage from './components/ChatMessage';
 import InlineEventMessage from './components/InlineEventMessage';
 import NewMessagesBanner from './components/NewMessagesBanner';
@@ -56,7 +58,28 @@ function stripEmotesForTTS(text, emoteMap, msgEmoteMap) {
 }
 
 function isMessageEligibleForTTS(msg, s) {
-  if (s.showFollows === false && (msg.eventType === 'follow' || msg.eventType === 'channel.follow')) {
+  // DonationAlerts donations have their own TTS toggle and minimum threshold
+  if (msg.eventType === 'donation') {
+    if (s.daTTS === false) return false;
+    const amount = parseFloat(msg.eventData?.amount || 0);
+    if (amount < (s.daMinTTSAmount || 0)) return false;
+    return true;
+  }
+
+  // Never voice rewards (channel points redemptions) or system events (follows, subs, raids, cheers, etc.)
+  if (
+    msg.isEvent ||
+    msg.eventType === 'reward' ||
+    msg.eventType === 'channel.channel_points_custom_reward_redemption.add' ||
+    msg.eventType === 'follow' ||
+    msg.eventType === 'channel.follow' ||
+    msg.eventType === 'sub' ||
+    msg.eventType === 'resub' ||
+    msg.eventType === 'subgift' ||
+    msg.eventType === 'raid' ||
+    msg.eventType === 'cheer' ||
+    msg.eventType === 'intro'
+  ) {
     return false;
   }
 
@@ -73,9 +96,8 @@ function isMessageEligibleForTTS(msg, s) {
     (msg.message && msg.message.startsWith('@'))
   );
   const isHighlighted = Boolean(
-    (msg.eventData && (msg.eventData['msg-id'] === 'highlighted-message' || msg.eventData['custom-reward-id'])) ||
+    (msg.eventData && msg.eventData['msg-id'] === 'highlighted-message') ||
     msg.isHighlighted ||
-    msg.eventType === 'reward' ||
     msg.eventType === 'highlighted'
   );
 
@@ -88,16 +110,49 @@ function isMessageEligibleForTTS(msg, s) {
   return false;
 }
 
+class SettingsErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('Settings view error:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-[#181920] text-[#ECECF1] p-6 space-y-4">
+          <div className="p-5 bg-[#242631] border border-rose-500/30 rounded-2xl max-w-md w-full text-center space-y-3 shadow-xl">
+            <div className="w-10 h-10 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto text-lg font-bold">!</div>
+            <h3 className="text-sm font-bold text-[#ECECF1]">Не удалось загрузить раздел настроек</h3>
+            <p className="text-xs text-[#8E92A4] font-mono break-words bg-[#181920] p-2.5 rounded-xl text-left border border-white/[0.04]">
+              {this.state.error?.message || 'Неизвестная ошибка'}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                if (this.props.onClose) this.props.onClose();
+              }}
+              className="px-4 py-2 bg-[#3B82F6] hover:bg-blue-600 text-white rounded-xl text-xs font-semibold cursor-pointer transition-all shadow-md"
+            >
+              Вернуться в чат
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Clean and prepare message content for TTS speech
 function formatTextForTTS(msg, s, emoteMap) {
+  // Only voice user chat messages, never system notifications
   let rawText = msg.message || '';
-  if (msg.eventType === 'reward' || msg.eventType === 'channel.channel_points_custom_reward_redemption.add') {
-    rawText = msg.message || msg.systemMsg || '';
-  } else if (msg.eventType === 'highlighted') {
-    rawText = msg.message || msg.systemMsg || '';
-  } else if (msg.isEvent) {
-    rawText = msg.systemMsg || msg.message || '';
-  }
   if (!rawText) return '';
 
   let text = rawText;
@@ -138,6 +193,13 @@ function formatTextForTTS(msg, s, emoteMap) {
   if (!text) return '';
 
   // 6. Include author username (if ttsIncludeUsername is true)
+  if (msg.eventType === 'donation') {
+    const author = msg.displayName || msg.user || 'Донатер';
+    const formattedAmount = msg.eventData?.formattedAmount || '';
+    const donText = text ? `: ${text}` : '';
+    return `Донат ${formattedAmount} от ${author}${donText}`;
+  }
+
   if (s.ttsIncludeUsername) {
     const author = msg.displayName || msg.user || '';
     if (author) {
@@ -162,7 +224,9 @@ export default function App() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isTTSActive, setIsTTSActive] = useState(false);
-    const [isGameMode, setIsGameMode] = useState(false);
+  const [isGameMode, setIsGameMode] = useState(false);
+  const [currentGoal, setCurrentGoal] = useState(null);
+  const [hideGoalBar, setHideGoalBar] = useState(false);
 
   useEffect(() => {
     if (isGameMode) {
@@ -330,6 +394,12 @@ export default function App() {
         if (badges) setDynamicBadges(badges);
       })
       .catch((err) => console.error('Failed to fetch global badges:', err));
+
+    GetCurrentGoal()
+      .then((g) => {
+        if (g && g.title) setCurrentGoal(g);
+      })
+      .catch((err) => console.error('Failed to fetch initial goal:', err));
   }, []);
 
   // Automatically fetch 7TV, BTTV & FFZ channel emotes whenever joined channels update
@@ -633,6 +703,13 @@ export default function App() {
       setEmoteMap(emotes || {});
     });
 
+    const unoffGoal = EventsOn('goal:update', (goalData) => {
+      if (goalData && goalData.title) {
+        setCurrentGoal(goalData);
+        setHideGoalBar(false);
+      }
+    });
+
     return () => {
       if (typeof unoffMsg === 'function') unoffMsg();
       if (typeof unoffSettings === 'function') unoffSettings();
@@ -640,6 +717,7 @@ export default function App() {
       if (typeof unoffChannels === 'function') unoffChannels();
       if (typeof unoffBadges === 'function') unoffBadges();
       if (typeof unoffEmotes === 'function') unoffEmotes();
+      if (typeof unoffGoal === 'function') unoffGoal();
     };
   }, [settings.maxMessages, emoteMap]);
 
@@ -693,7 +771,7 @@ export default function App() {
     setActiveView('settings');
   };
 
-  const closeSettings = () => {
+  const closeSettings = useCallback(() => {
     GetSettings()
       .then((loaded) => {
         if (loaded) {
@@ -706,10 +784,14 @@ export default function App() {
       })
       .catch((err) => console.error('Failed to reload settings on close:', err));
     setActiveView('chat');
-  };
+  }, []);
 
   if (activeView === 'settings') {
-    return <SettingsView onClose={closeSettings} />;
+    return (
+      <SettingsErrorBoundary onClose={closeSettings}>
+        <SettingsView onClose={closeSettings} />
+      </SettingsErrorBoundary>
+    );
   }
 
   // Filter messages based on muted channels, disabled events, and ignored users/commands
@@ -751,6 +833,14 @@ export default function App() {
           isSettingsMode={false}
           onOpenSettings={openSettings}
           onToggleGameMode={handleToggleGameMode}
+        />
+      )}
+
+      {/* Goal Tracker Bar pinned under channel / title header */}
+      {!isGameMode && settings.daShowGoalBar !== false && currentGoal && !hideGoalBar && (
+        <GoalTrackerBar
+          goal={currentGoal}
+          onClose={() => setHideGoalBar(true)}
         />
       )}
 

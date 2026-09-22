@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -18,6 +19,60 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// TokenValidation holds Twitch OAuth token details from https://id.twitch.tv/oauth2/validate
+type TokenValidation struct {
+	ClientID  string   `json:"client_id"`
+	Login     string   `json:"login"`
+	Scopes    []string `json:"scopes"`
+	UserID    string   `json:"user_id"`
+	ExpiresIn int      `json:"expires_in"`
+}
+
+// HasScope checks if a specific Twitch OAuth scope is present in the token validation
+func (tv *TokenValidation) HasScope(scope string) bool {
+	if tv == nil {
+		return false
+	}
+	for _, s := range tv.Scopes {
+		if strings.EqualFold(s, scope) {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateTwitchToken validates a Twitch OAuth token and returns user info and granted scopes
+func ValidateTwitchToken(oauthToken string) (*TokenValidation, error) {
+	cleanToken := strings.TrimPrefix(strings.TrimSpace(oauthToken), "oauth:")
+	if cleanToken == "" {
+		return nil, fmt.Errorf("empty oauth token")
+	}
+
+	req, err := http.NewRequest("GET", "https://id.twitch.tv/oauth2/validate", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+cleanToken)
+
+	client := proxy.GetHTTPClient()
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("token validation request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("token validation returned HTTP %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var val TokenValidation
+	if err := json.Unmarshal(bodyBytes, &val); err != nil {
+		return nil, fmt.Errorf("failed to decode validation response: %w", err)
+	}
+	return &val, nil
+}
 
 // EventSub message structures according to Twitch documentation
 type eventSubMetadata struct {
@@ -101,6 +156,10 @@ type EventSubClient struct {
 	stopChan   chan struct{}
 	isRunning  bool
 
+	// Follower scope state
+	hasFollowerScope   bool
+	hasFollowerScopeMu sync.RWMutex
+
 	// Cache of resolved user logins to user IDs
 	userCache   map[string]string
 	userCacheMu sync.RWMutex
@@ -109,25 +168,42 @@ type EventSubClient struct {
 	channels   map[string]bool
 	channelsMu sync.RWMutex
 
-	// Deduplication cache: redemption ID -> timestamp
+	// Deduplication cache: redemption ID / follow key -> timestamp
 	dedupCache   map[string]time.Time
 	dedupCacheMu sync.Mutex
+
+	// Seen followers for Helix polling fallback: userId -> true
+	seenFollowers   map[string]bool
+	seenFollowersMu sync.RWMutex
 
 	onMessage func(msg *ChatMessage)
 }
 
 func NewEventSubClient(onMessage func(msg *ChatMessage)) *EventSubClient {
 	return &EventSubClient{
-		clientID:   config.TwitchClientID,
-		userCache:  make(map[string]string),
-		channels:   make(map[string]bool),
-		dedupCache: make(map[string]time.Time),
-		onMessage:  onMessage,
+		clientID:      config.TwitchClientID,
+		userCache:     make(map[string]string),
+		channels:      make(map[string]bool),
+		dedupCache:    make(map[string]time.Time),
+		seenFollowers: make(map[string]bool),
+		onMessage:     onMessage,
 	}
 }
 
 func (e *EventSubClient) SetContext(ctx context.Context) {
 	e.ctx = ctx
+}
+
+func (e *EventSubClient) SetUserID(userID string) {
+	e.connMu.Lock()
+	defer e.connMu.Unlock()
+	e.userID = userID
+}
+
+func (e *EventSubClient) HasFollowerScope() bool {
+	e.hasFollowerScopeMu.RLock()
+	defer e.hasFollowerScopeMu.RUnlock()
+	return e.hasFollowerScope
 }
 
 func (e *EventSubClient) Start(oauthToken, userID string) {
@@ -142,7 +218,11 @@ func (e *EventSubClient) Start(oauthToken, userID string) {
 	e.stopChan = make(chan struct{})
 	e.connMu.Unlock()
 
+	// Verify token scopes & auto-resolve UserID if missing
+	go e.verifyTokenAndScopes()
+
 	go e.runLoop()
+	go e.runHelixFollowerPoller()
 }
 
 func (e *EventSubClient) Stop() {
@@ -478,6 +558,44 @@ func (e *EventSubClient) subscribeForChannel(channelName, sessionID string) {
 	}, channelName, "follows")
 }
 
+func (e *EventSubClient) verifyTokenAndScopes() {
+	if e.oauthToken == "" {
+		return
+	}
+	val, err := ValidateTwitchToken(e.oauthToken)
+	if err != nil {
+		log.Printf("[EventSub] Warning: Failed to validate Twitch token: %v", err)
+		return
+	}
+
+	if e.userID == "" && val.UserID != "" {
+		e.userID = val.UserID
+		log.Printf("[EventSub] Auto-resolved UserID for %s: %s", val.Login, val.UserID)
+		settings := config.LoadSettings()
+		if settings.UserID == "" {
+			settings.UserID = val.UserID
+			_ = config.SaveSettings(settings)
+		}
+	}
+
+	hasFollowScope := val.HasScope("moderator:read:followers")
+	e.hasFollowerScopeMu.Lock()
+	e.hasFollowerScope = hasFollowScope
+	e.hasFollowerScopeMu.Unlock()
+
+	if !hasFollowScope {
+		log.Printf("[EventSub] ⚠️ WARNING: OAuth token for %s is MISSING 'moderator:read:followers' scope! Follower events cannot be received until user re-authenticates in Settings.", val.Login)
+		if e.ctx != nil {
+			runtime.EventsEmit(e.ctx, "twitch:scope-missing", map[string]interface{}{
+				"missingScope": "moderator:read:followers",
+				"username":     val.Login,
+			})
+		}
+	} else {
+		log.Printf("[EventSub] ✅ OAuth token has 'moderator:read:followers' scope. Follower notifications are active.")
+	}
+}
+
 func (e *EventSubClient) createSubscription(sessionID, subType, version string, condition map[string]string, channelName, label string) {
 	reqBody := map[string]interface{}{
 		"type":      subType,
@@ -502,7 +620,7 @@ func (e *EventSubClient) createSubscription(sessionID, subType, version string, 
 	req.Header.Set("Client-Id", e.clientID)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := proxy.GetHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("[EventSub] %s subscription request failed for #%s: %v", label, channelName, err)
@@ -510,10 +628,23 @@ func (e *EventSubClient) createSubscription(sessionID, subType, version string, 
 	}
 	defer resp.Body.Close()
 
+	bodyBytesResp, _ := io.ReadAll(resp.Body)
+	respBodyStr := string(bodyBytesResp)
+
 	if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusOK {
 		log.Printf("[EventSub] Successfully subscribed to %s for #%s (ID: %s)", label, channelName, condition["broadcaster_user_id"])
 	} else {
-		log.Printf("[EventSub] Subscription error for %s on #%s (HTTP %d)", label, channelName, resp.StatusCode)
+		log.Printf("[EventSub] Subscription error for %s on #%s (HTTP %d): %s", label, channelName, resp.StatusCode, respBodyStr)
+		if (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized) &&
+			(strings.Contains(respBodyStr, "moderator:read:followers") || strings.Contains(respBodyStr, "missing required scopes") || label == "follows") {
+			log.Printf("[EventSub] ⚠️ Follow subscription blocked by Twitch due to missing 'moderator:read:followers' scope or permissions.")
+			if e.ctx != nil {
+				runtime.EventsEmit(e.ctx, "twitch:scope-missing", map[string]interface{}{
+					"missingScope": "moderator:read:followers",
+					"channel":      channelName,
+				})
+			}
+		}
 	}
 }
 
@@ -547,7 +678,7 @@ func (e *EventSubClient) resolveUserID(channelName string) (string, error) {
 	req.Header.Set("Authorization", "Bearer "+e.oauthToken)
 	req.Header.Set("Client-Id", e.clientID)
 
-	client := &http.Client{Timeout: 8 * time.Second}
+	client := proxy.GetHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
@@ -574,6 +705,141 @@ func (e *EventSubClient) resolveUserID(channelName string) (string, error) {
 	e.userCacheMu.Unlock()
 
 	return id, nil
+}
+
+type helixFollowerItem struct {
+	UserID     string `json:"user_id"`
+	UserLogin  string `json:"user_login"`
+	UserName   string `json:"user_name"`
+	FollowedAt string `json:"followed_at"`
+}
+
+type helixFollowerResponse struct {
+	Total int                 `json:"total"`
+	Data  []helixFollowerItem `json:"data"`
+}
+
+func (e *EventSubClient) runHelixFollowerPoller() {
+	// Give EventSub 15 seconds to connect and initialize before starting periodic polling
+	time.Sleep(15 * time.Second)
+
+	// Seed existing followers so we don't alert for users who followed before app started
+	e.seedFollowers()
+
+	ticker := time.NewTicker(45 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-e.stopChan:
+			return
+		case <-ticker.C:
+			e.pollHelixFollowers()
+		}
+	}
+}
+
+func (e *EventSubClient) seedFollowers() {
+	if e.oauthToken == "" {
+		return
+	}
+	e.channelsMu.RLock()
+	chList := make([]string, 0, len(e.channels))
+	for ch := range e.channels {
+		chList = append(chList, ch)
+	}
+	e.channelsMu.RUnlock()
+
+	client := proxy.GetHTTPClient()
+	for _, ch := range chList {
+		broadcasterID, err := e.resolveUserID(ch)
+		if err != nil || broadcasterID == "" {
+			continue
+		}
+		url := fmt.Sprintf("%s?broadcaster_id=%s&first=20", config.TwitchHelixFollowersURL, broadcasterID)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			continue
+		}
+		req.Header.Set("Authorization", "Bearer "+e.oauthToken)
+		req.Header.Set("Client-Id", e.clientID)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			continue
+		}
+		if resp.StatusCode == http.StatusOK {
+			var fResp helixFollowerResponse
+			if err := json.NewDecoder(resp.Body).Decode(&fResp); err == nil {
+				e.seenFollowersMu.Lock()
+				for _, item := range fResp.Data {
+					e.seenFollowers[item.UserID] = true
+				}
+				e.seenFollowersMu.Unlock()
+			}
+		}
+		resp.Body.Close()
+	}
+}
+
+func (e *EventSubClient) pollHelixFollowers() {
+	if e.oauthToken == "" {
+		return
+	}
+	e.channelsMu.RLock()
+	chList := make([]string, 0, len(e.channels))
+	for ch := range e.channels {
+		chList = append(chList, ch)
+	}
+	e.channelsMu.RUnlock()
+
+	client := proxy.GetHTTPClient()
+	for _, ch := range chList {
+		broadcasterID, err := e.resolveUserID(ch)
+		if err != nil || broadcasterID == "" {
+			continue
+		}
+		url := fmt.Sprintf("%s?broadcaster_id=%s&first=10", config.TwitchHelixFollowersURL, broadcasterID)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			continue
+		}
+		req.Header.Set("Authorization", "Bearer "+e.oauthToken)
+		req.Header.Set("Client-Id", e.clientID)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			continue
+		}
+		if resp.StatusCode == http.StatusOK {
+			var fResp helixFollowerResponse
+			if err := json.NewDecoder(resp.Body).Decode(&fResp); err == nil {
+				for _, item := range fResp.Data {
+					e.seenFollowersMu.Lock()
+					isSeen := e.seenFollowers[item.UserID]
+					if !isSeen {
+						e.seenFollowers[item.UserID] = true
+					}
+					e.seenFollowersMu.Unlock()
+
+					if !isSeen {
+						ev := eventSubFollowEvent{
+							UserID:               item.UserID,
+							UserLogin:            item.UserLogin,
+							UserName:             item.UserName,
+							BroadcasterUserID:    broadcasterID,
+							BroadcasterUserLogin: ch,
+							BroadcasterUserName:  ch,
+							FollowedAt:           item.FollowedAt,
+						}
+						log.Printf("[Helix] Detected new follower via Helix fallback: %s for #%s", item.UserName, ch)
+						e.handleFollowEvent(ev)
+					}
+				}
+			}
+		}
+		resp.Body.Close()
+	}
 }
 
 func (e *EventSubClient) Reconnect() {

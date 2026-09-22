@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,7 +59,8 @@ func (bf *BadgeFetcher) FetchGlobalBadges() (map[string]string, error) {
 
 	req.Header.Set("Client-Id", clientID)
 	if settings.OAuthToken != "" {
-		req.Header.Set("Authorization", "Bearer "+settings.OAuthToken)
+		cleanToken := strings.TrimPrefix(settings.OAuthToken, "oauth:")
+		req.Header.Set("Authorization", "Bearer "+cleanToken)
 	}
 
 	client := proxy.GetHTTPClient()
