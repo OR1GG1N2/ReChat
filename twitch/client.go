@@ -3,42 +3,64 @@ package twitch
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"strings"
 	"sync"
 	"time"
 
 	"ReChat/config"
+	"ReChat/proxy"
 
 	"github.com/gorilla/websocket"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type ChatMessage struct {
-	ID          string `json:"id"`
-	Channel     string `json:"channel"`
-	User        string `json:"user"`
-	DisplayName string `json:"displayName"`
-	Color       string `json:"color"`
-	Message     string `json:"message"`
-	Timestamp   string `json:"timestamp"`
-	Badges      string `json:"badges"`
+	ID          string            `json:"id"`
+	Platform    string            `json:"platform,omitempty"` // "twitch" or "kick"
+	Channel     string            `json:"channel"`
+	User        string            `json:"user"`
+	DisplayName string            `json:"displayName"`
+	Color       string            `json:"color"`
+	Message     string            `json:"message"`
+	Timestamp   string            `json:"timestamp"`
+	Badges      string            `json:"badges"`
+	EmoteMap    map[string]string `json:"emoteMap,omitempty"`
+	IsEvent     bool              `json:"isEvent,omitempty"`
+	EventType   string            `json:"eventType,omitempty"`   // "sub", "resub", "subgift", "raid", "cheer", "announcement", "timeout", "ban", "clearchat", "reward", "hypetrain", "shoutout", "notice", "intro"
+	SystemMsg   string            `json:"systemMsg,omitempty"`
+	EventData   map[string]string `json:"eventData,omitempty"`
+	IsFirstMsg  bool              `json:"isFirstMsg,omitempty"`
 }
 
 type Client struct {
-	ctx         context.Context
-	conn        *websocket.Conn
-	connMu      sync.Mutex
-	joinedChans map[string]bool
-	isConnected bool
-	stopChan    chan struct{}
+	ctx          context.Context
+	conn         *websocket.Conn
+	connMu       sync.Mutex
+	joinedChans  map[string]bool
+	isConnected  bool
+	stopChan     chan struct{}
+	onMessage    func(*ChatMessage)
+	rewardFilter func(*ChatMessage) bool
+	parser       *IRCParser
 }
 
 func NewClient() *Client {
 	return &Client{
 		joinedChans: make(map[string]bool),
+		parser:      NewIRCParser(),
 	}
+}
+
+// SetMessageHandler sets a callback called for every chat message (including IRC and system events).
+func (c *Client) SetMessageHandler(fn func(*ChatMessage)) {
+	c.onMessage = fn
+}
+
+func (c *Client) SetRewardFilter(fn func(*ChatMessage) bool) {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	c.rewardFilter = fn
 }
 
 func (c *Client) SetContext(ctx context.Context) {
@@ -50,7 +72,7 @@ func (c *Client) ensureConnectedUnlocked() error {
 		return nil
 	}
 
-	dialer := websocket.DefaultDialer
+	dialer := proxy.GetWebSocketDialer()
 	conn, _, err := dialer.Dial(config.TwitchIRCWebSocketURL, nil)
 	if err != nil {
 		c.emitStatus("error", "", fmt.Sprintf("Connection failed: %v", err))
@@ -59,6 +81,9 @@ func (c *Client) ensureConnectedUnlocked() error {
 
 	c.conn = conn
 	c.isConnected = true
+	if c.stopChan != nil {
+		close(c.stopChan)
+	}
 	c.stopChan = make(chan struct{})
 
 	// Request capabilities (tags, commands, membership)
@@ -79,7 +104,7 @@ func (c *Client) ensureConnectedUnlocked() error {
 
 	c.emitStatus("connected", "", "Connected to Twitch IRC server")
 
-	go c.readLoop()
+	go c.readLoop(conn)
 
 	return nil
 }
@@ -98,14 +123,33 @@ func (c *Client) JoinChannel(channelName string) error {
 	}
 
 	if c.joinedChans[channel] {
-		return nil // Already joined
+		return nil
 	}
 
-	_ = c.conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("JOIN #%s", channel)))
-	c.joinedChans[channel] = true
+	if c.conn != nil {
+		err := c.conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("JOIN #%s", channel)))
+		if err != nil {
+			return err
+		}
+	}
 
-	c.emitStatus("joined", channel, fmt.Sprintf("Joined #%s", channel))
+	c.joinedChans[channel] = true
 	c.emitChannelsUpdated()
+	c.emitStatus("joined", channel, fmt.Sprintf("Joined channel #%s", channel))
+
+	// Save to persistent settings
+	settings := config.LoadSettings()
+	exists := false
+	for _, ch := range settings.JoinedChannels {
+		if strings.ToLower(ch) == channel {
+			exists = true
+			break
+		}
+	}
+	if !exists {
+		settings.JoinedChannels = append(settings.JoinedChannels, channel)
+		_ = config.SaveSettings(settings)
+	}
 
 	return nil
 }
@@ -115,170 +159,185 @@ func (c *Client) LeaveChannel(channelName string) error {
 	defer c.connMu.Unlock()
 
 	channel := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(channelName), "#"))
-	if channel == "" || !c.joinedChans[channel] {
-		return nil
+	if channel == "" {
+		return fmt.Errorf("channel name cannot be empty")
 	}
 
-	if c.conn != nil {
+	if c.conn != nil && c.joinedChans[channel] {
 		_ = c.conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PART #%s", channel)))
 	}
-	delete(c.joinedChans, channel)
 
-	c.emitStatus("left", channel, fmt.Sprintf("Left #%s", channel))
+	delete(c.joinedChans, channel)
 	c.emitChannelsUpdated()
+	c.emitStatus("parted", channel, fmt.Sprintf("Left channel #%s", channel))
+
+	// Update persistent settings
+	settings := config.LoadSettings()
+	newChans := make([]string, 0, len(settings.JoinedChannels))
+	for _, ch := range settings.JoinedChannels {
+		if strings.ToLower(ch) != channel {
+			newChans = append(newChans, ch)
+		}
+	}
+	settings.JoinedChannels = newChans
+	_ = config.SaveSettings(settings)
 
 	return nil
+}
+
+// SendMessage sends a message to the specified Twitch channel via IRC PRIVMSG
+func (c *Client) SendMessage(channelName, message string) error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+
+	channel := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(channelName), "#"))
+	if channel == "" {
+		return fmt.Errorf("channel name cannot be empty")
+	}
+
+	trimmedMsg := strings.TrimSpace(message)
+	if trimmedMsg == "" {
+		return fmt.Errorf("message cannot be empty")
+	}
+
+	settings := config.LoadSettings()
+	if settings.OAuthToken == "" || settings.Username == "" {
+		return fmt.Errorf("требуется авторизация через Twitch для отправки сообщений")
+	}
+
+	if err := c.ensureConnectedUnlocked(); err != nil {
+		return err
+	}
+
+	if c.conn == nil {
+		return fmt.Errorf("not connected to Twitch IRC")
+	}
+
+	ircCmd := fmt.Sprintf("PRIVMSG #%s :%s", channel, trimmedMsg)
+	if err := c.conn.WriteMessage(websocket.TextMessage, []byte(ircCmd)); err != nil {
+		return fmt.Errorf("failed to send message: %w", err)
+	}
+
+	// Optimistically emit the sent message to local chat UI
+	now := time.Now().Format("15:04:05")
+	localMsg := ChatMessage{
+		ID:          fmt.Sprintf("local-%d", time.Now().UnixNano()),
+		Channel:     channel,
+		User:        settings.Username,
+		DisplayName: settings.Username,
+		Color:       "#3B82F6",
+		Message:     trimmedMsg,
+		Timestamp:   now,
+	}
+	if c.ctx != nil {
+		runtime.EventsEmit(c.ctx, "chat:message", localMsg)
+	}
+	if c.onMessage != nil {
+		c.onMessage(&localMsg)
+	}
+
+	return nil
+}
+
+func (c *Client) ReconnectWithAuth() error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+
+	if c.conn != nil {
+		_ = c.conn.Close()
+		c.conn = nil
+		c.isConnected = false
+	}
+
+	// ensureConnectedUnlocked starts a new readLoop goroutine which will
+	// re-join all channels once IRC registration (001/376) is received.
+	// Do NOT send JOIN here — they race against authentication and are dropped.
+	return c.ensureConnectedUnlocked()
 }
 
 func (c *Client) GetJoinedChannels() []string {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
 
-	list := make([]string, 0, len(c.joinedChans))
+	channels := make([]string, 0, len(c.joinedChans))
 	for ch := range c.joinedChans {
-		list = append(list, ch)
+		channels = append(channels, ch)
 	}
-	return list
+	return channels
 }
 
-func (c *Client) Disconnect() {
-	c.connMu.Lock()
-	defer c.connMu.Unlock()
-	c.disconnectUnlocked()
-}
-
-func (c *Client) disconnectUnlocked() {
-	if !c.isConnected {
-		return
-	}
-	c.isConnected = false
-	if c.stopChan != nil {
-		close(c.stopChan)
-	}
-	if c.conn != nil {
-		for ch := range c.joinedChans {
-			_ = c.conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PART #%s", ch)))
+func (c *Client) AutoJoinStoredChannels() {
+	settings := config.LoadSettings()
+	if len(settings.JoinedChannels) > 0 {
+		for _, ch := range settings.JoinedChannels {
+			_ = c.JoinChannel(ch)
 		}
-		_ = c.conn.Close()
-		c.conn = nil
+	} else if settings.DefaultChannel != "" {
+		_ = c.JoinChannel(settings.DefaultChannel)
 	}
-	c.joinedChans = make(map[string]bool)
-	c.emitStatus("disconnected", "", "Disconnected")
-	c.emitChannelsUpdated()
 }
 
-func (c *Client) readLoop() {
-	defer func() {
-		c.connMu.Lock()
-		if c.isConnected {
-			c.disconnectUnlocked()
-		} else {
-			c.connMu.Unlock()
-		}
-	}()
-
+func (c *Client) readLoop(conn *websocket.Conn) {
 	for {
-		select {
-		case <-c.stopChan:
+		_, messageBytes, err := conn.ReadMessage()
+		if err != nil {
+			c.connMu.Lock()
+			if c.conn == conn {
+				c.conn = nil
+				c.isConnected = false
+				c.emitStatus("disconnected", "", "Connection closed")
+			}
+			c.connMu.Unlock()
 			return
-		default:
-			_, msgBytes, err := c.conn.ReadMessage()
-			if err != nil {
-				log.Printf("Read error: %v", err)
-				return
+		}
+
+		rawLines := strings.Split(string(messageBytes), "\r\n")
+		for _, line := range rawLines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
 			}
 
-			lines := strings.Split(string(msgBytes), "\r\n")
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if line == "" {
-					continue
+			if strings.HasPrefix(line, "PING") {
+				c.connMu.Lock()
+				if c.conn == conn {
+					_ = conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
 				}
+				c.connMu.Unlock()
+				continue
+			}
 
-				if strings.HasPrefix(line, "PING") {
+			// On successful IRC registration / welcome, join active channels
+			if strings.Contains(line, " 001 ") || strings.Contains(line, " 376 ") || strings.Contains(line, "GLOBALUSERSTATE") {
+				c.connMu.Lock()
+				if c.conn == conn {
+					for ch := range c.joinedChans {
+						_ = conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("JOIN #%s", ch)))
+					}
+				}
+				c.connMu.Unlock()
+			}
+
+			msg := c.parser.Parse(line)
+			if msg != nil {
+				if msg.EventType == "reward" {
 					c.connMu.Lock()
-					if c.conn != nil {
-						_ = c.conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
-					}
+					filter := c.rewardFilter
 					c.connMu.Unlock()
-					continue
-				}
-
-				if strings.Contains(line, "PRIVMSG") {
-					msg := c.parsePrivMsg(line)
-					if msg != nil && c.ctx != nil {
-						runtime.EventsEmit(c.ctx, "chat:message", msg)
+					if filter != nil && filter(msg) {
+						// Suppress duplicate reward from IRC because EventSub is active and handling it
+						continue
 					}
 				}
-			}
-		}
-	}
-}
-
-func (c *Client) parsePrivMsg(raw string) *ChatMessage {
-	msg := &ChatMessage{
-		Timestamp: time.Now().Format("15:04:05"),
-	}
-
-	tags := ""
-	rest := raw
-
-	if strings.HasPrefix(raw, "@") {
-		parts := strings.SplitN(raw[1:], " ", 2)
-		if len(parts) == 2 {
-			tags = parts[0]
-			rest = parts[1]
-		}
-	}
-
-	// Parse tags
-	if tags != "" {
-		tagPairs := strings.Split(tags, ";")
-		for _, pair := range tagPairs {
-			kv := strings.SplitN(pair, "=", 2)
-			if len(kv) == 2 {
-				key, val := kv[0], kv[1]
-				switch key {
-				case "display-name":
-					msg.DisplayName = val
-				case "color":
-					msg.Color = val
-				case "id":
-					msg.ID = val
-				case "badges":
-					msg.Badges = val
+				if c.ctx != nil {
+					runtime.EventsEmit(c.ctx, "chat:message", msg)
+				}
+				if c.onMessage != nil {
+					c.onMessage(msg)
 				}
 			}
 		}
 	}
-
-	// Extract Username, Channel, and Message text
-	// rest format: :user!user@user.tmi.twitch.tv PRIVMSG #channel :Message content
-	if idx := strings.Index(rest, " PRIVMSG "); idx != -1 {
-		prefix := rest[:idx]
-		if strings.HasPrefix(prefix, ":") {
-			userEnd := strings.Index(prefix, "!")
-			if userEnd != -1 {
-				msg.User = prefix[1:userEnd]
-			}
-		}
-		if msg.DisplayName == "" {
-			msg.DisplayName = msg.User
-		}
-
-		afterPrivmsg := rest[idx+9:] // after " PRIVMSG "
-		msgStart := strings.Index(afterPrivmsg, " :")
-		if msgStart != -1 {
-			msg.Channel = strings.TrimPrefix(afterPrivmsg[:msgStart], "#")
-			msg.Message = afterPrivmsg[msgStart+2:]
-		}
-	}
-
-	if msg.Message == "" {
-		return nil
-	}
-
-	return msg
 }
 
 func (c *Client) emitStatus(status, channel, message string) {
@@ -300,3 +359,24 @@ func (c *Client) emitChannelsUpdated() {
 		runtime.EventsEmit(c.ctx, "channels:updated", channels)
 	}
 }
+
+func (c *Client) Disconnect() {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+
+	if c.stopChan != nil {
+		close(c.stopChan)
+		c.stopChan = nil
+	}
+
+	if c.conn != nil {
+		_ = c.conn.Close()
+		c.conn = nil
+	}
+	c.isConnected = false
+	c.joinedChans = make(map[string]bool)
+	c.emitChannelsUpdated()
+	c.emitStatus("disconnected", "", "Disconnected from Twitch")
+}
+
+

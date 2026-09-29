@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now Playing - Vintage Cassette Tape</title>
+  <link rel="stylesheet" href="/widget/music/assets/cassette/style.css">
+</head>
+<body>
+  <div id="widget-container" class="cassette-widget hidden">
+    <!-- Ambient Aura Glow -->
+    <div class="cassette-ambient-glow" id="ambient-glow"></div>
+
+    <!-- Main Cassette Body Shell -->
+    <div class="cassette-body" id="cassette-shell">
+      <!-- 4 Corner Screws -->
+      <div class="screw screw-tl"><div class="screw-slot"></div></div>
+      <div class="screw screw-tr"><div class="screw-slot"></div></div>
+      <div class="screw screw-bl"><div class="screw-slot"></div></div>
+      <div class="screw screw-br"><div class="screw-slot"></div></div>
+      <div class="screw screw-bc"><div class="screw-slot"></div></div>
+
+      <!-- Top Notch Ridge -->
+      <div class="cassette-top-ridge"></div>
+
+      <!-- Vintage Paper Label Area -->
+      <div class="cassette-label">
+        <!-- Vintage Retro Stripes Header -->
+        <div class="label-header">
+          <div class="label-stripes">
+            <span class="stripe stripe-accent"></span>
+            <span class="stripe stripe-secondary"></span>
+          </div>
+          <div class="label-brand">
+            <span class="side-badge">SIDE A</span>
+            <span class="type-badge">TYPE II • CHROME</span>
+            <span class="dolby-badge">DOLBY B NR</span>
+          </div>
+        </div>
+
+        <!-- Label Content: Album Cover + Title / Artist -->
+        <div class="label-meta-row">
+          <!-- Album Cover / Jacket Thumbnail -->
+          <div class="label-cover-wrapper" id="cover-wrap">
+            <img id="cover-img" src="" alt="Cover" class="label-cover-img" style="display:none;" />
+            <div id="cover-fallback" class="label-cover-fallback">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Typography Info -->
+          <div class="label-text-box">
+            <div class="label-field-title">
+              <span class="field-tag">TITLE:</span>
+              <div class="label-title-clip">
+                <div class="label-title" id="track-title">Ожидание трека...</div>
+              </div>
+            </div>
+            <div class="label-field-artist" id="artist-row">
+              <span class="field-tag">ARTIST:</span>
+              <div class="label-artist" id="track-artist">—</div>
+            </div>
+          </div>
+
+          <!-- Mechanical Tape Counter -->
+          <div class="label-counter-deck">
+            <div class="counter-label">COUNTER</div>
+            <div class="counter-display" id="tape-counter">
+              <span class="digit">0</span>
+              <span class="digit">4</span>
+              <span class="digit">2</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Clear Tape Window & Spinning Spools -->
+        <div class="cassette-window">
+          <!-- Measurement Ticks on Acrylic Window -->
+          <div class="window-gauge">
+            <span>100</span>
+            <span>50</span>
+            <span>0</span>
+          </div>
+
+          <!-- Left Spool with Tape Pack -->
+          <div class="spool-unit spool-left" id="spool-left">
+            <div class="tape-roll tape-roll-large"></div>
+            <div class="spool-hub">
+              <div class="hub-teeth tooth-1"></div>
+              <div class="hub-teeth tooth-2"></div>
+              <div class="hub-teeth tooth-3"></div>
+              <div class="hub-center"></div>
+            </div>
+          </div>
+
+          <!-- Magnetic Tape Ribbon Bridge -->
+          <div class="tape-bridge">
+            <div class="tape-ribbon"></div>
+          </div>
+
+          <!-- Right Spool with Tape Pack -->
+          <div class="spool-unit spool-right" id="spool-right">
+            <div class="tape-roll tape-roll-small"></div>
+            <div class="spool-hub">
+              <div class="hub-teeth tooth-1"></div>
+              <div class="hub-teeth tooth-2"></div>
+              <div class="hub-teeth tooth-3"></div>
+              <div class="hub-center"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Tape Head Indent Section (Trapezoid) -->
+      <div class="cassette-bottom-bay">
+        <div class="roller-hole hole-left"></div>
+        <div class="head-gap">
+          <div class="tape-guide-pad"></div>
+        </div>
+        <div class="roller-hole hole-right"></div>
+
+        <!-- VU Level Audio Visualizer & LED Indicator -->
+        <div class="tape-status-bar">
+          <!-- Play / Pause LED -->
+          <div class="tape-led-indicator">
+            <span class="led-dot" id="led-dot"></span>
+            <span class="led-text" id="led-text">PLAY</span>
+          </div>
+
+          <!-- Source App Badge -->
+          <div class="tape-source-badge" id="source-badge">SPOTIFY</div>
+
+          <!-- Stereo VU Visualizer -->
+          <div class="tape-vu-meter" id="vu-meter">
+            <div class="vu-channel">
+              <span class="vu-bar g"></span>
+              <span class="vu-bar g"></span>
+              <span class="vu-bar g"></span>
+              <span class="vu-bar y"></span>
+              <span class="vu-bar y"></span>
+              <span class="vu-bar r"></span>
+            </div>
+            <div class="vu-channel">
+              <span class="vu-bar g"></span>
+              <span class="vu-bar g"></span>
+              <span class="vu-bar g"></span>
+              <span class="vu-bar y"></span>
+              <span class="vu-bar y"></span>
+              <span class="vu-bar r"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('widget-container');
+    const shell = document.getElementById('cassette-shell');
+    const coverImg = document.getElementById('cover-img');
+    const coverFallback = document.getElementById('cover-fallback');
+    const titleEl = document.getElementById('track-title');
+    const artistEl = document.getElementById('track-artist');
+    const artistRow = document.getElementById('artist-row');
+    const sourceBadge = document.getElementById('source-badge');
+    const ledDot = document.getElementById('led-dot');
+    const ledText = document.getElementById('led-text');
+    const vuMeter = document.getElementById('vu-meter');
+    const tapeCounter = document.getElementById('tape-counter');
+
+    let currentTrackKey = '';
+    let hideTimeout = null;
+    let counterInterval = null;
+    let counterVal = 42;
+
+    let config = {
+      scale: 100,
+      showCover: true,
+      showArtist: true,
+      showVisualizer: true,
+      hideOnPause: true,
+      pauseDelay: 3,
+      accentColor: 'amber'
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+    if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+
+    const ACCENTS = {
+      amber:   '#F59E0B',
+      emerald: '#10B981',
+      purple:  '#9146FF',
+      blue:    '#3B82F6',
+      pink:    '#EC4899',
+      red:     '#EF4444',
+      white:   '#F3F4F6'
+    };
+
+    function applyConfig(cfg) {
+      if (!cfg) return;
+      config = { ...config, ...cfg };
+      if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+      if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+
+      document.documentElement.style.setProperty('--cassette-scale', (config.scale || 100) / 100);
+      const acc = ACCENTS[config.accentColor] || ACCENTS.amber;
+      document.documentElement.style.setProperty('--accent-color', acc);
+
+      if (vuMeter) vuMeter.style.display = config.showVisualizer !== false ? 'flex' : 'none';
+      if (artistRow) artistRow.style.display = config.showArtist !== false ? 'flex' : 'none';
+      if (coverImg && !config.showCover) {
+        document.getElementById('cover-wrap').style.display = 'none';
+      } else if (coverImg) {
+        document.getElementById('cover-wrap').style.display = 'block';
+      }
+    }
+
+    applyConfig(config);
+
+    // Increment tape counter while playing
+    function startCounter() {
+      if (counterInterval) return;
+      counterInterval = setInterval(() => {
+        counterVal = (counterVal + 1) % 999;
+        const str = String(counterVal).padStart(3, '0');
+        if (tapeCounter) {
+          tapeCounter.innerHTML = `<span class="digit">${str[0]}</span><span class="digit">${str[1]}</span><span class="digit">${str[2]}</span>`;
+        }
+      }, 1000);
+    }
+
+    function stopCounter() {
+      if (counterInterval) {
+        clearInterval(counterInterval);
+        counterInterval = null;
+      }
+    }
+
+    function updateTrack(data) {
+      if (!data) return;
+      const isPlaying = data.status === 'playing';
+      const hasTitle = data.title && data.title.trim().length > 0;
+
+      if (!hasTitle || (!isPlaying && data.status !== 'paused')) {
+        hideWidget();
+        stopCounter();
+        return;
+      }
+
+      const trackKey = (data.title || '') + '|' + (data.artist || '');
+      const isNew = trackKey !== currentTrackKey;
+      currentTrackKey = trackKey;
+
+      titleEl.textContent = data.title || 'Без названия';
+      artistEl.textContent = data.artist || (data.album || 'Неизвестный исполнитель');
+      if (sourceBadge) {
+        sourceBadge.textContent = (data.source ? data.source.replace('.exe', '') : 'AUDIO').toUpperCase();
+      }
+
+      // Marquee calculation
+      titleEl.classList.remove('marquee');
+      if (titleEl.scrollWidth > titleEl.parentElement.clientWidth + 4) {
+        titleEl.classList.add('marquee');
+      }
+
+      // Cover Art
+      if (data.thumbnail && data.thumbnail.length > 50) {
+        coverImg.src = data.thumbnail;
+        coverImg.style.display = 'block';
+        coverFallback.style.display = 'none';
+      } else {
+        coverImg.style.display = 'none';
+        coverFallback.style.display = 'flex';
+      }
+
+      if (isPlaying) {
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+        shell.classList.remove('paused');
+        shell.classList.add('playing');
+        ledText.textContent = 'PLAY';
+        startCounter();
+        showWidget(isNew);
+      } else {
+        shell.classList.remove('playing');
+        shell.classList.add('paused');
+        ledText.textContent = 'PAUSE';
+        stopCounter();
+
+        if (config.hideOnPause) {
+          if (!hideTimeout) {
+            const delay = Math.max(config.pauseDelay || 3, 0) * 1000;
+            hideTimeout = setTimeout(hideWidget, delay);
+          }
+        }
+      }
+    }
+
+    function showWidget(animate) {
+      container.classList.remove('hidden');
+      if (animate) {
+        container.classList.remove('animate-in');
+        void container.offsetWidth;
+        container.classList.add('animate-in');
+      }
+    }
+
+    function hideWidget() {
+      container.classList.add('hidden');
+    }
+
+    function connectSSE() {
+      const es = new EventSource('/widget/music/events');
+      es.addEventListener('track', (e) => {
+        try { updateTrack(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('config', (e) => {
+        try { applyConfig(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('reload', () => window.location.reload());
+      es.onerror = () => {
+        setTimeout(connectSSE, 3000);
+        es.close();
+      };
+    }
+
+    connectSSE();
+  </script>
+</body>
+</html>

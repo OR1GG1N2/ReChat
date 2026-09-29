@@ -1,0 +1,263 @@
+/* ==========================================================================
+   ReChat Music Widget — iOS Square Mini Widget Theme
+   Inspired by Apple iOS Small Home Screen Widget
+   ========================================================================== */
+
+:root {
+  --card-scale: 1;
+  --accent-color: #10B981;
+  --accent-glow: rgba(16, 185, 129, 0.45);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: transparent !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+/* Outer Container */
+.ios-sq-container {
+  position: relative;
+  transform: scale(var(--card-scale));
+  transform-origin: top left;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 1;
+}
+
+.ios-sq-container.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(var(--card-scale)) translateY(16px);
+}
+
+.ios-sq-container.animate-in {
+  animation: iosSqSpring 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes iosSqSpring {
+  0% {
+    opacity: 0;
+    transform: scale(calc(var(--card-scale) * 0.93)) translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(var(--card-scale)) translateY(0);
+  }
+}
+
+/* Ambient Backlight Glow */
+.ios-sq-ambient {
+  position: absolute;
+  inset: -10px;
+  border-radius: 36px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(30px) saturate(180%);
+  opacity: 0.45;
+  z-index: 0;
+  pointer-events: none;
+  transition: background-image 0.6s ease;
+}
+
+/* Main Square Card */
+.ios-sq-card {
+  position: relative;
+  z-index: 1;
+  width: 175px;
+  height: 175px;
+  background: rgba(28, 29, 37, 0.82);
+  backdrop-filter: blur(40px) saturate(190%);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow:
+    0 16px 36px -6px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* Top Right App Badge */
+.ios-sq-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ios-sq-badge #badge-spotify {
+  color: #1DB954;
+}
+
+.ios-sq-badge #badge-apple {
+  color: #FC3C44;
+}
+
+.ios-sq-badge #badge-music {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Centered Album Artwork */
+.ios-sq-art {
+  width: 96px;
+  height: 96px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 8px 20px -2px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: #1e2029;
+}
+
+.ios-sq-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ios-sq-cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2b2e3d 0%, #171821 100%);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Full Bleed Mode (?layout=cover) */
+.layout-cover .ios-sq-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 28px;
+}
+
+.layout-cover .ios-sq-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(14, 15, 20, 0.95) 0%, rgba(14, 15, 20, 0.5) 45%, rgba(14, 15, 20, 0.1) 100%);
+}
+
+.layout-cover .ios-sq-footer {
+  position: relative;
+  z-index: 2;
+}
+
+/* Footer: Track Info & Equalizer */
+.ios-sq-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.ios-sq-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5px;
+}
+
+.ios-sq-title-wrap {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ios-sq-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: -0.2px;
+  line-height: 1.25;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.ios-sq-title.marquee {
+  animation: iosSqMarquee 8s linear infinite;
+  display: inline-block;
+  padding-right: 24px;
+}
+
+@keyframes iosSqMarquee {
+  0% { transform: translateX(0); }
+  15% { transform: translateX(0); }
+  85% { transform: translateX(calc(-100% + 110px)); }
+  100% { transform: translateX(0); }
+}
+
+.ios-sq-artist {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+/* Mini Equalizer */
+.ios-sq-vis {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.sq-bar {
+  width: 2px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 999px;
+  transform-origin: bottom;
+  animation: sqWave 0.9s ease-in-out infinite alternate;
+}
+
+.sq-bar:nth-child(1) { height: 50%; animation-delay: 0.1s; }
+.sq-bar:nth-child(2) { height: 100%; animation-delay: 0.3s; }
+.sq-bar:nth-child(3) { height: 40%; animation-delay: 0.2s; }
+
+.paused .sq-bar {
+  animation: none !important;
+  height: 2px !important;
+  opacity: 0.35;
+}
+
+@keyframes sqWave {
+  0% { transform: scaleY(0.25); }
+  100% { transform: scaleY(1); }
+}

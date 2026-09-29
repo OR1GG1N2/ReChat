@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now Playing - Windows 98</title>
+  <link rel="stylesheet" href="/widget/music/assets/retro98/style.css">
+</head>
+<body>
+  <div id="widget-container" class="win98-window hidden">
+    <!-- Title Bar -->
+    <div class="win98-titlebar">
+      <div class="win98-title-group">
+        <span class="win98-icon">🎵</span>
+        <span class="win98-title-text">Now Playing - ReChat Media Player</span>
+      </div>
+      <div class="win98-controls">
+        <button class="win98-btn" aria-label="Minimize">_</button>
+        <button class="win98-btn" aria-label="Maximize">□</button>
+        <button class="win98-btn win98-close" aria-label="Close">✕</button>
+      </div>
+    </div>
+
+    <!-- Menu Bar Mock -->
+    <div class="win98-menubar">
+      <span class="win98-menu-item"><u>F</u>ile</span>
+      <span class="win98-menu-item"><u>P</u>lay</span>
+      <span class="win98-menu-item"><u>V</u>iew</span>
+      <span class="win98-menu-item"><u>H</u>elp</span>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="win98-content">
+      <div class="win98-top-row">
+        <!-- Album Cover Sunken Frame -->
+        <div class="win98-cover-frame" id="cover-frame">
+          <img id="cover-img" src="" alt="Album Cover" class="win98-cover-img" style="display:none;" />
+          <div id="cover-fallback" class="win98-cover-fallback">
+            <span class="disc-icon">💿</span>
+          </div>
+        </div>
+
+        <!-- Track Info & LCD Panel -->
+        <div class="win98-info-column">
+          <!-- Digital LCD Display -->
+          <div class="win98-lcd-display">
+            <div class="lcd-row">
+              <span class="lcd-status-badge" id="lcd-status">PLAY</span>
+              <span class="lcd-timer" id="lcd-timer">01:42</span>
+              <span class="lcd-source" id="lcd-source">STEREO</span>
+            </div>
+            <div class="lcd-track-wrapper" id="title-wrapper">
+              <div class="lcd-track-text" id="track-title">Ожидание трека...</div>
+            </div>
+          </div>
+
+          <!-- Artist & Album -->
+          <div class="win98-details">
+            <div class="win98-detail-row">
+              <span class="win98-label">Artist:</span>
+              <span class="win98-val" id="track-artist">—</span>
+            </div>
+            <div class="win98-detail-row">
+              <span class="win98-label">Source:</span>
+              <span class="win98-val" id="track-album">Spotify</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress Track Bar -->
+      <div class="win98-progress-section">
+        <div class="win98-slider-groove">
+          <div class="win98-slider-fill" id="progress-fill"></div>
+          <div class="win98-slider-thumb" id="progress-thumb"></div>
+        </div>
+        <div class="win98-time-labels">
+          <span id="time-cur">0:00</span>
+          <span id="time-total">3:30</span>
+        </div>
+      </div>
+
+      <!-- Equalizer Visualizer & Vintage Meters -->
+      <div class="win98-bottom-row" id="vis-row">
+        <div class="win98-meter-label">EQ SPECTRUM</div>
+        <div class="win98-equalizer" id="equalizer">
+          <div class="eq-col"><div class="eq-bar"></div></div>
+          <div class="eq-col"><div class="eq-bar"></div></div>
+          <div class="eq-col"><div class="eq-bar"></div></div>
+          <div class="eq-col"><div class="eq-bar"></div></div>
+          <div class="eq-col"><div class="eq-bar"></div></div>
+          <div class="eq-col"><div class="eq-bar"></div></div>
+          <div class="eq-col"><div class="eq-bar"></div></div>
+          <div class="eq-col"><div class="eq-bar"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sunken Statusbar -->
+    <div class="win98-statusbar">
+      <div class="sb-cell sb-status" id="sb-status">Ready</div>
+      <div class="sb-cell sb-kbps">1411 Kbps</div>
+      <div class="sb-cell sb-hz">44.1 kHz</div>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('widget-container');
+    const titleEl = document.getElementById('track-title');
+    const artistEl = document.getElementById('track-artist');
+    const albumEl = document.getElementById('track-album');
+    const coverImg = document.getElementById('cover-img');
+    const coverFallback = document.getElementById('cover-fallback');
+    const coverFrame = document.getElementById('cover-frame');
+    const lcdStatus = document.getElementById('lcd-status');
+    const lcdTimer = document.getElementById('lcd-timer');
+    const lcdSource = document.getElementById('lcd-source');
+    const sbStatus = document.getElementById('sb-status');
+    const progFill = document.getElementById('progress-fill');
+    const progThumb = document.getElementById('progress-thumb');
+    const timeCur = document.getElementById('time-cur');
+    const visRow = document.getElementById('vis-row');
+
+    let currentTrackKey = '';
+    let hideTimeout = null;
+    let timerInterval = null;
+    let elapsedSeconds = 0;
+
+    let config = {
+      scale: 100,
+      showCover: true,
+      showArtist: true,
+      showVisualizer: true,
+      hideOnPause: true,
+      pauseDelay: 3
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+
+    function applyConfig(cfg) {
+      if (!cfg) return;
+      config = { ...config, ...cfg };
+      if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+
+      document.documentElement.style.setProperty('--win98-scale', (config.scale || 100) / 100);
+      if (coverFrame) coverFrame.style.display = config.showCover !== false ? 'flex' : 'none';
+      if (visRow) visRow.style.display = config.showVisualizer !== false ? 'flex' : 'none';
+    }
+
+    applyConfig(config);
+
+    function formatTime(totalSec) {
+      const m = Math.floor(totalSec / 60);
+      const s = Math.floor(totalSec % 60);
+      return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        elapsedSeconds += 1;
+        const formatted = formatTime(elapsedSeconds);
+        lcdTimer.textContent = formatted;
+        timeCur.textContent = formatted;
+        const pct = Math.min(100, (elapsedSeconds % 210) / 210 * 100);
+        progFill.style.width = pct + '%';
+        progThumb.style.left = pct + '%';
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function updateTrack(data) {
+      if (!data) return;
+      const isPlaying = data.status === 'playing';
+      const hasTitle = data.title && data.title.trim().length > 0;
+
+      if (!hasTitle || (!isPlaying && data.status !== 'paused')) {
+        hideWidget();
+        return;
+      }
+
+      const trackKey = (data.title || '') + '|' + (data.artist || '');
+      const isNew = trackKey !== currentTrackKey;
+      currentTrackKey = trackKey;
+
+      if (isNew) {
+        elapsedSeconds = 0;
+      }
+
+      titleEl.textContent = data.title || 'Без названия';
+      artistEl.textContent = data.artist || (data.album || 'Неизвестный артист');
+      albumEl.textContent = data.source ? data.source.replace('.exe', '') : (data.album || 'Media');
+      sbStatus.textContent = isPlaying ? 'Playing' : 'Paused';
+      lcdStatus.textContent = isPlaying ? 'PLAY' : 'PAUSE';
+      if (lcdSource) lcdSource.textContent = data.source ? data.source.replace('.exe', '').toUpperCase().slice(0, 7) : 'STEREO';
+
+      // Marquee check
+      titleEl.classList.remove('marquee');
+      if (titleEl.scrollWidth > titleEl.parentElement.clientWidth + 4) {
+        titleEl.classList.add('marquee');
+      }
+
+      // Cover art
+      if (data.thumbnail && data.thumbnail.length > 50) {
+        coverImg.src = data.thumbnail;
+        coverImg.style.display = 'block';
+        coverFallback.style.display = 'none';
+      } else {
+        coverImg.style.display = 'none';
+        coverFallback.style.display = 'flex';
+      }
+
+      if (isPlaying) {
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+        startTimer();
+        container.classList.remove('paused');
+        showWidget(isNew);
+      } else {
+        stopTimer();
+        container.classList.add('paused');
+        if (config.hideOnPause) {
+          if (!hideTimeout) {
+            const delay = Math.max(config.pauseDelay || 3, 0) * 1000;
+            hideTimeout = setTimeout(hideWidget, delay);
+          }
+        }
+      }
+    }
+
+    function showWidget(animate) {
+      container.classList.remove('hidden');
+      if (animate) {
+        container.classList.remove('animate-pop');
+        void container.offsetWidth;
+        container.classList.add('animate-pop');
+      }
+    }
+
+    function hideWidget() {
+      container.classList.add('hidden');
+      stopTimer();
+    }
+
+    function connectSSE() {
+      const es = new EventSource('/widget/music/events');
+      es.addEventListener('track', (e) => {
+        try { updateTrack(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('config', (e) => {
+        try { applyConfig(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('reload', () => window.location.reload());
+      es.onerror = () => {
+        setTimeout(connectSSE, 3000);
+        es.close();
+      };
+    }
+
+    connectSSE();
+  </script>
+</body>
+</html>

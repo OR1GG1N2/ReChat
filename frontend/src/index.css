@@ -2,12 +2,105 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Modern Dark Stream Companion Palette (Matches Screenshots 1 & 2) */
+:root {
+  --color-canvas: #181920;
+  --color-surface: #242631;
+  --color-surface-card: #242631;
+  --color-surface-preview: #1b1c24;
+  --color-surface-elevated: #2c2e3b;
+  --color-surface-hover: #2f3240;
+  
+  --color-rule: rgba(255, 255, 255, 0.06);
+  --color-rule-strong: rgba(255, 255, 255, 0.12);
+  --color-rule-active: rgba(59, 130, 246, 0.5);
+
+  --color-ink: #ECECF1;
+  --color-ink-secondary: #9E9EB2;
+  --color-ink-muted: #6C7082;
+  --color-ink-faint: #474A58;
+
+  --color-accent-twitch: #9146FF;
+  --color-accent-blue: #3B82F6;
+  --color-accent-purple: #A855F7;
+  --color-accent-live: #10B981;
+  --color-accent-live-hover: #059669;
+  --color-accent-hype: #EC4899;
+  --color-accent-cheer: #F59E0B;
+  --color-accent-danger: #EF4444;
+
+  --font-sans: 'Lato', 'Inter', 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: #0f0f0f;
-  color: #e5e7eb;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: #181920;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
+}
+
+/* Game Mode: strip all backgrounds — JS adds .game-mode to both <html> and <body> */
+html.game-mode,
+html:has(body.game-mode),
+body.game-mode,
+body.game-mode #root,
+body.game-mode #root > div,
+body.game-mode main {
+  background: transparent !important;
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Hallmark tactile scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Hide scrollbar utility */
+.scrollbar-none::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none,
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

@@ -1,0 +1,394 @@
+/* ============================================
+   Vinyl Record Music Player Theme
+   Inspired by 6K Labs Amuse Vinyl style
+   ============================================ */
+
+:root {
+  --vinyl-scale: 1;
+  --accent-color: #10B981;
+  --accent-glow: rgba(16, 185, 129, 0.4);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: transparent !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 100vh;
+}
+
+/* Base Widget Container */
+.vinyl-widget {
+  position: relative;
+  transform: scale(var(--vinyl-scale));
+  transform-origin: top left;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 1;
+  max-width: 440px;
+}
+
+.vinyl-widget.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(var(--vinyl-scale)) translateY(18px);
+}
+
+.vinyl-widget.animate-in {
+  animation: vinylPop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes vinylPop {
+  0% {
+    opacity: 0;
+    transform: scale(calc(var(--vinyl-scale) * 0.94)) translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(var(--vinyl-scale)) translateY(0);
+  }
+}
+
+/* Ambient Back Glow */
+.vinyl-ambient-glow {
+  position: absolute;
+  inset: -12px;
+  background: radial-gradient(circle at 35% 50%, var(--accent-glow) 0%, transparent 65%);
+  filter: blur(24px);
+  z-index: 1;
+  opacity: 0.6;
+  transition: opacity 0.5s ease;
+}
+
+.paused .vinyl-ambient-glow {
+  opacity: 0.2;
+}
+
+/* Card Body */
+.vinyl-card-body {
+  position: relative;
+  z-index: 2;
+  background: rgba(14, 16, 24, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 14px 20px 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow:
+    0 16px 36px -4px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+/* Player Rig: Sleeve + Disc */
+.vinyl-player-rig {
+  position: relative;
+  width: 96px;
+  height: 84px;
+  flex-shrink: 0;
+}
+
+/* Album Jacket Sleeve */
+.vinyl-sleeve {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 84px;
+  height: 84px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1a1d27;
+  box-shadow:
+    2px 4px 16px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  z-index: 4;
+}
+
+.sleeve-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sleeve-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-color);
+  background: radial-gradient(circle, #252837, #13151f);
+}
+
+/* Gloss reflection on sleeve */
+.sleeve-gloss {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.05) 35%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+/* Right lip opening of sleeve */
+.sleeve-lip {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(to right, rgba(0,0,0,0.5), rgba(0,0,0,0.9));
+  box-shadow: inset 1px 0 1px rgba(255,255,255,0.06);
+}
+
+/* Disc Wrap & Position */
+.vinyl-disc-wrap {
+  position: absolute;
+  left: 14px;
+  top: 2px;
+  width: 80px;
+  height: 80px;
+  z-index: 3;
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translateX(14px);
+}
+
+.paused .vinyl-disc-wrap {
+  transform: translateX(2px);
+}
+
+/* Vinyl Disc LP */
+.vinyl-disc {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #0d0d0f;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+  position: relative;
+  overflow: hidden;
+  animation: spinVinyl 3.6s linear infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.paused .vinyl-disc {
+  animation-play-state: paused;
+}
+
+@keyframes spinVinyl {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Grooves */
+.groove-layer {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: repeating-radial-gradient(
+    circle,
+    #18191d 0px,
+    #18191d 1px,
+    #0c0c0e 2px,
+    #0c0c0e 3px
+  );
+  opacity: 0.9;
+}
+
+/* Dynamic light sheen */
+.light-reflection {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 45deg,
+    transparent 0deg,
+    rgba(255, 255, 255, 0.14) 40deg,
+    transparent 80deg,
+    transparent 180deg,
+    rgba(255, 255, 255, 0.14) 220deg,
+    transparent 260deg
+  );
+  pointer-events: none;
+}
+
+/* Center Label */
+.disc-label {
+  position: relative;
+  z-index: 5;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #252836;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.7);
+}
+
+.disc-label-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.disc-label-fallback {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.spindle-hole {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #000000;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Info Panel */
+.vinyl-info-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vinyl-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.vinyl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: var(--accent-color);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1px 7px;
+  border-radius: 12px;
+}
+
+.pulse-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--accent-color);
+  box-shadow: 0 0 6px var(--accent-color);
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+
+.paused .pulse-dot {
+  animation: none;
+  background-color: #666;
+  box-shadow: none;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+}
+
+.vinyl-source-badge {
+  font-size: 9px;
+  font-family: monospace;
+  font-weight: bold;
+  color: #8c93a8;
+  letter-spacing: 0.5px;
+}
+
+.vinyl-title-box {
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.vinyl-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f1f3f9;
+  letter-spacing: -0.2px;
+  display: inline-block;
+}
+
+.vinyl-title.marquee {
+  animation: vinylMarquee 10s linear infinite;
+}
+
+@keyframes vinylMarquee {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(0); }
+  75% { transform: translateX(calc(-100% + 200px)); }
+  100% { transform: translateX(0); }
+}
+
+.vinyl-artist {
+  font-size: 11px;
+  color: #8E92A4;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Waveform Visualizer */
+.vinyl-waveform {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 12px;
+  margin-top: 4px;
+}
+
+.wave-bar {
+  width: 2.5px;
+  height: 4px;
+  background-color: var(--accent-color);
+  border-radius: 2px;
+  box-shadow: 0 0 5px var(--accent-glow);
+  transition: height 0.2s ease;
+}
+
+.vinyl-widget:not(.paused) .wave-bar:nth-child(1) { animation: wavePulse 0.8s infinite alternate 0.0s; }
+.vinyl-widget:not(.paused) .wave-bar:nth-child(2) { animation: wavePulse 0.6s infinite alternate 0.15s; }
+.vinyl-widget:not(.paused) .wave-bar:nth-child(3) { animation: wavePulse 0.9s infinite alternate 0.3s; }
+.vinyl-widget:not(.paused) .wave-bar:nth-child(4) { animation: wavePulse 0.7s infinite alternate 0.1s; }
+.vinyl-widget:not(.paused) .wave-bar:nth-child(5) { animation: wavePulse 0.85s infinite alternate 0.25s; }
+.vinyl-widget:not(.paused) .wave-bar:nth-child(6) { animation: wavePulse 0.65s infinite alternate 0.05s; }
+
+@keyframes wavePulse {
+  0% { height: 3px; }
+  50% { height: 12px; }
+  100% { height: 6px; }
+}
+
+.paused .wave-bar {
+  animation: none !important;
+  height: 3px !important;
+  opacity: 0.35;
+}

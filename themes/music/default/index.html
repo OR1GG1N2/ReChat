@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now Playing Widget</title>
+  <link rel="stylesheet" href="/widget/music/assets/style.css">
+</head>
+<body>
+  <div id="widget-container" class="hidden style-glass accent-emerald">
+    <!-- Aurora background blur glow -->
+    <div class="aurora-glow-layer" id="aurora-layer"></div>
+
+    <div class="music-card" id="card">
+      <!-- Windows 98 Titlebar (retro98 style) -->
+      <div class="win98-titlebar" id="win98-bar">
+        <div class="win98-title-text">
+          <span class="win98-icon">🎵</span>
+          <span>Now Playing</span>
+        </div>
+        <div class="win98-buttons">
+          <span class="win98-btn">_</span>
+          <span class="win98-btn">□</span>
+          <span class="win98-btn win98-close">✕</span>
+        </div>
+      </div>
+
+      <div class="card-inner-body">
+        <!-- Vinyl Disc (vinyl style) -->
+        <div class="vinyl-disc" id="vinyl">
+          <div class="vinyl-groove"></div>
+          <div class="vinyl-center"></div>
+        </div>
+
+        <!-- CD Jewel Disc (cd style) -->
+        <div class="cd-disc" id="cd">
+          <div class="cd-surface"></div>
+          <div class="cd-center"></div>
+        </div>
+
+        <!-- Album Cover -->
+        <div class="cover-wrapper" id="cover-box">
+          <img id="cover" src="" alt="Cover" class="cover-img" />
+          <div id="cover-fallback" class="cover-fallback">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18V5l12-2v13"></path>
+              <circle cx="6" cy="18" r="3"></circle>
+              <circle cx="18" cy="16" r="3"></circle>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Cassette Spools (cassette style) -->
+        <div class="cassette-center" id="cassette-spools">
+          <div class="spool spool-left"></div>
+          <div class="cassette-window"></div>
+          <div class="spool spool-right"></div>
+        </div>
+
+        <!-- Track Info -->
+        <div class="track-info">
+          <div class="track-title-wrapper" id="title-wrapper">
+            <div id="title" class="track-title">Ожидание трека...</div>
+          </div>
+          <div id="artist" class="track-artist">Неизвестный исполнитель</div>
+
+          <!-- Progress bar for Spotify & Retro98 styles -->
+          <div class="track-progress-row" id="progress-bar-row">
+            <span class="prog-time" id="prog-cur">1:24</span>
+            <div class="prog-track">
+              <div class="prog-fill" id="prog-fill"></div>
+            </div>
+            <span class="prog-time" id="prog-total">3:42</span>
+          </div>
+        </div>
+
+        <!-- Audio Visualizer Bars -->
+        <div class="visualizer" id="vis">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+          <span class="bar bar-4"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('widget-container');
+    const card = document.getElementById('card');
+    const titleEl = document.getElementById('title');
+    const artistEl = document.getElementById('artist');
+    const coverEl = document.getElementById('cover');
+    const fallbackEl = document.getElementById('cover-fallback');
+    const coverBox = document.getElementById('cover-box');
+    const visEl = document.getElementById('vis');
+
+    let currentTrackKey = '';
+    let hideTimeout = null;
+    let lastTrackData = null;
+
+    // Config defaults
+    let config = {
+      style: 'glass',
+      accentColor: 'emerald',
+      showCover: true,
+      showVisualizer: true,
+      showArtist: true,
+      hideOnPause: true,
+      pauseDelay: 3,
+      scale: 100,
+      bgOpacity: 85
+    };
+
+    // Override from URL params if specified (for scene presets)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('style')) config.style = urlParams.get('style');
+    if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+    if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+    if (urlParams.has('opacity')) config.bgOpacity = Number(urlParams.get('opacity'));
+
+    const ACCENT_COLORS = {
+      emerald: { hex: '#10B981', glow: 'rgba(16, 185, 129, 0.45)' },
+      blue:    { hex: '#3B82F6', glow: 'rgba(59, 130, 246, 0.45)' },
+      purple:  { hex: '#9146FF', glow: 'rgba(145, 70, 255, 0.45)' },
+      pink:    { hex: '#EC4899', glow: 'rgba(236, 72, 153, 0.45)' },
+      amber:   { hex: '#F59E0B', glow: 'rgba(245, 158, 11, 0.45)' },
+      white:   { hex: '#F3F4F6', glow: 'rgba(243, 244, 246, 0.45)' }
+    };
+
+    function applyConfig(newCfg) {
+      if (!newCfg) return;
+      config = { ...config, ...newCfg };
+
+      // Keep URL overrides if requested
+      if (urlParams.has('style')) config.style = urlParams.get('style');
+      if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+
+      // Apply style class
+      container.className = container.className
+        .replace(/style-\w+/g, '')
+        .replace(/accent-\w+/g, '')
+        .trim();
+      
+      container.classList.add('style-' + (config.style || 'glass'));
+      container.classList.add('accent-' + (config.accentColor || 'emerald'));
+
+      // Apply CSS variables
+      const col = ACCENT_COLORS[config.accentColor] || ACCENT_COLORS.emerald;
+      document.documentElement.style.setProperty('--accent-color', col.hex);
+      document.documentElement.style.setProperty('--accent-glow', col.glow);
+      document.documentElement.style.setProperty('--card-scale', (config.scale || 100) / 100);
+      document.documentElement.style.setProperty('--bg-opacity', (config.bgOpacity !== undefined ? config.bgOpacity : 85) / 100);
+
+      // Elements visibility
+      coverBox.style.display = config.showCover ? 'block' : 'none';
+      visEl.style.display = config.showVisualizer ? 'flex' : 'none';
+      artistEl.style.display = config.showArtist ? 'block' : 'none';
+
+      // Re-evaluate current track state
+      if (lastTrackData) {
+        updateTrack(lastTrackData);
+      }
+    }
+
+    function updateTrack(data) {
+      if (!data) return;
+      lastTrackData = data;
+
+      const isPlaying = data.status === 'playing';
+      const hasTitle = data.title && data.title.trim().length > 0;
+
+      if (!hasTitle || (!isPlaying && data.status !== 'paused')) {
+        hideWidget();
+        return;
+      }
+
+      const trackKey = (data.title || '') + '|' + (data.artist || '');
+      const isNewTrack = trackKey !== currentTrackKey;
+      currentTrackKey = trackKey;
+
+      titleEl.textContent = data.title || 'Без названия';
+      artistEl.textContent = data.artist || (data.album || 'Неизвестный исполнитель');
+
+      adjustMarquee();
+
+      if (data.thumbnail && data.thumbnail.length > 50) {
+        coverEl.src = data.thumbnail;
+        coverEl.style.display = 'block';
+        fallbackEl.style.display = 'none';
+      } else {
+        coverEl.style.display = 'none';
+        fallbackEl.style.display = 'flex';
+      }
+
+      if (isPlaying) {
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+        showWidget(isNewTrack);
+        container.classList.remove('paused');
+      } else {
+        // Paused state
+        container.classList.add('paused');
+        if (config.hideOnPause) {
+          if (!hideTimeout) {
+            const delayMs = Math.max(config.pauseDelay || 3, 0) * 1000;
+            hideTimeout = setTimeout(() => {
+              hideWidget();
+            }, delayMs);
+          }
+        }
+      }
+    }
+
+    function showWidget(animate) {
+      container.classList.remove('hidden');
+      if (animate) {
+        container.classList.remove('animate-in');
+        void container.offsetWidth;
+        container.classList.add('animate-in');
+      }
+    }
+
+    function hideWidget() {
+      container.classList.add('hidden');
+    }
+
+    function adjustMarquee() {
+      titleEl.classList.remove('marquee');
+      const wrapper = titleEl.parentElement;
+      if (titleEl.scrollWidth > wrapper.clientWidth + 6) {
+        titleEl.classList.add('marquee');
+      }
+    }
+
+    // Connect SSE
+    function connectSSE() {
+      const evtSource = new EventSource('/widget/music/events');
+
+      evtSource.addEventListener('track', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          updateTrack(data);
+        } catch (err) {
+          console.error('Failed to parse track SSE:', err);
+        }
+      });
+
+      evtSource.addEventListener('config', (e) => {
+        try {
+          const cfg = JSON.parse(e.data);
+          applyConfig(cfg);
+        } catch (err) {
+          console.error('Failed to parse config SSE:', err);
+        }
+      });
+
+      evtSource.addEventListener('reload', () => {
+        window.location.reload();
+      });
+
+      evtSource.onerror = () => {
+        setTimeout(connectSSE, 3000);
+        evtSource.close();
+      };
+    }
+
+    connectSSE();
+  </script>
+</body>
+</html>

@@ -1,0 +1,378 @@
+/* ============================================
+   Cyberpunk HUD Music Player Theme
+   High-tech sci-fi overlay with glowing neon
+   ============================================ */
+
+:root {
+  --cyber-scale: 1;
+  --cyber-main: #00f0ff;
+  --cyber-glow: rgba(0, 240, 255, 0.45);
+  --cyber-sec: #ff003c;
+  --cyber-bg: rgba(6, 8, 15, 0.92);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: transparent !important;
+  font-family: 'Consolas', 'Courier New', monospace, -apple-system, sans-serif;
+  overflow: hidden;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 100vh;
+}
+
+/* Cyber HUD Container with Chamfered Corners */
+.cyber-hud {
+  position: relative;
+  width: 420px;
+  background: var(--cyber-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  clip-path: polygon(
+    14px 0%,
+    calc(100% - 14px) 0%,
+    100% 14px,
+    100% calc(100% - 14px),
+    calc(100% - 14px) 100%,
+    14px 100%,
+    0% calc(100% - 14px),
+    0% 14px
+  );
+  padding: 10px 14px 10px 14px;
+  box-shadow:
+    0 0 24px rgba(0, 0, 0, 0.8),
+    inset 0 0 16px rgba(0, 240, 255, 0.08),
+    0 0 12px var(--cyber-glow);
+  transform: scale(var(--cyber-scale));
+  transform-origin: top left;
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 1;
+}
+
+.cyber-hud.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(var(--cyber-scale)) translateY(16px);
+}
+
+.cyber-hud.animate-in {
+  animation: cyberGlitchIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes cyberGlitchIn {
+  0% {
+    opacity: 0;
+    transform: scale(calc(var(--cyber-scale) * 0.92)) translateY(18px) skewX(-2deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(calc(var(--cyber-scale) * 1.02)) translateY(-2px) skewX(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(var(--cyber-scale)) translateY(0) skewX(0);
+  }
+}
+
+/* Corner Markers */
+.hud-corner {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--cyber-sec);
+  border-style: solid;
+  pointer-events: none;
+  z-index: 5;
+}
+.top-left { top: 3px; left: 3px; border-width: 2px 0 0 2px; }
+.top-right { top: 3px; right: 3px; border-width: 2px 2px 0 0; }
+.btm-left { bottom: 3px; left: 3px; border-width: 0 0 2px 2px; }
+.btm-right { bottom: 3px; right: 3px; border-width: 0 2px 2px 0; }
+
+/* Scanlines */
+.cyber-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.35),
+    rgba(0, 0, 0, 0.35) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.6;
+}
+
+/* Header */
+.cyber-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px dashed rgba(0, 240, 255, 0.25);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+.cyber-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cyber-status-led {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--cyber-main);
+  box-shadow: 0 0 8px var(--cyber-main);
+  animation: cyberBlink 1.2s infinite ease-in-out;
+}
+
+.paused .cyber-status-led {
+  background-color: var(--cyber-sec);
+  box-shadow: 0 0 6px var(--cyber-sec);
+  animation: none;
+}
+
+@keyframes cyberBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.cyber-protocol {
+  color: var(--cyber-main);
+  font-weight: bold;
+  text-shadow: 0 0 6px var(--cyber-glow);
+}
+
+.cyber-freq {
+  color: #64748b;
+  font-size: 8px;
+}
+
+/* Body */
+.cyber-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 3;
+}
+
+/* Hologram Album Cage */
+.cyber-cover-cage {
+  width: 62px;
+  height: 62px;
+  position: relative;
+  flex-shrink: 0;
+  border: 1px solid var(--cyber-main);
+  background: #090c14;
+  box-shadow: 0 0 10px var(--cyber-glow);
+  overflow: hidden;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+}
+
+.cyber-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: contrast(1.15) brightness(1.05);
+}
+
+.cyber-cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyber-main);
+  background: radial-gradient(circle, #0e172a, #03060c);
+}
+
+.holo-icon {
+  font-size: 24px;
+  filter: drop-shadow(0 0 6px var(--cyber-main));
+}
+
+.cyber-glitch-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--cyber-main);
+  box-shadow: 0 0 6px var(--cyber-main);
+  opacity: 0.7;
+  top: 30%;
+  animation: scanGlide 3s linear infinite;
+}
+
+@keyframes scanGlide {
+  0% { top: 0%; opacity: 0.2; }
+  50% { top: 90%; opacity: 0.8; }
+  100% { top: 0%; opacity: 0.2; }
+}
+
+/* Meta Column */
+.cyber-meta-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cyber-title-box {
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.cyber-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.3px;
+  text-shadow: 0 0 8px var(--cyber-glow);
+  display: inline-block;
+}
+
+.cyber-title.marquee {
+  animation: cyberMarquee 9s linear infinite;
+}
+
+@keyframes cyberMarquee {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(0); }
+  75% { transform: translateX(calc(-100% + 180px)); }
+  100% { transform: translateX(0); }
+}
+
+.cyber-artist {
+  font-size: 10px;
+  color: var(--cyber-main);
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+/* Telemetry row */
+.cyber-telemetry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.cyber-vol-meter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vol-label {
+  font-size: 8px;
+  color: #64748b;
+  font-weight: bold;
+}
+
+.vol-blocks {
+  display: flex;
+  gap: 2px;
+}
+
+.v-blk {
+  width: 4px;
+  height: 8px;
+  background-color: var(--cyber-main);
+  opacity: 0.85;
+}
+.v-blk:nth-child(4) { background-color: var(--cyber-sec); }
+.v-blk:nth-child(5) { background-color: var(--cyber-sec); opacity: 0.4; }
+
+.cyber-source-tag {
+  font-size: 8px;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+
+/* Visualizer */
+.cyber-vis {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 28px;
+  padding-left: 4px;
+  border-left: 1px solid rgba(0, 240, 255, 0.2);
+}
+
+.c-col {
+  width: 4px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: flex-end;
+}
+
+.c-fill {
+  width: 100%;
+  height: 30%;
+  background: var(--cyber-main);
+  box-shadow: 0 0 6px var(--cyber-glow);
+  transition: height 0.15s ease;
+}
+
+.c-col:nth-child(5) .c-fill, .c-col:nth-child(6) .c-fill {
+  background: var(--cyber-sec);
+  box-shadow: 0 0 6px var(--cyber-sec);
+}
+
+.cyber-hud:not(.paused) .c-col:nth-child(1) .c-fill { animation: cybPulse 0.7s infinite alternate 0.0s; }
+.cyber-hud:not(.paused) .c-col:nth-child(2) .c-fill { animation: cybPulse 0.5s infinite alternate 0.15s; }
+.cyber-hud:not(.paused) .c-col:nth-child(3) .c-fill { animation: cybPulse 0.8s infinite alternate 0.05s; }
+.cyber-hud:not(.paused) .c-col:nth-child(4) .c-fill { animation: cybPulse 0.6s infinite alternate 0.2s; }
+.cyber-hud:not(.paused) .c-col:nth-child(5) .c-fill { animation: cybPulse 0.75s infinite alternate 0.12s; }
+.cyber-hud:not(.paused) .c-col:nth-child(6) .c-fill { animation: cybPulse 0.55s infinite alternate 0.25s; }
+
+@keyframes cybPulse {
+  0% { height: 15%; }
+  50% { height: 95%; }
+  100% { height: 40%; }
+}
+
+.paused .c-fill {
+  animation: none !important;
+  height: 15% !important;
+  opacity: 0.3;
+}
+
+/* Footer Line */
+.cyber-footer-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(0, 240, 255, 0.2);
+  padding-top: 3px;
+  margin-top: 6px;
+  font-size: 7px;
+  color: #475569;
+  letter-spacing: 1px;
+}
+
+.cyber-dots {
+  color: var(--cyber-sec);
+  font-size: 6px;
+}

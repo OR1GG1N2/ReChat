@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now Playing - Cyberpunk HUD</title>
+  <link rel="stylesheet" href="/widget/music/assets/cyberpunk/style.css">
+</head>
+<body>
+  <div id="widget-container" class="cyber-hud hidden">
+    <!-- Cyber Corner Markers -->
+    <div class="hud-corner top-left"></div>
+    <div class="hud-corner top-right"></div>
+    <div class="hud-corner btm-left"></div>
+    <div class="hud-corner btm-right"></div>
+
+    <!-- Scanline Layer -->
+    <div class="cyber-scanlines"></div>
+
+    <!-- HUD Header -->
+    <div class="cyber-header">
+      <div class="cyber-badge-wrap">
+        <span class="cyber-status-led" id="status-led"></span>
+        <span class="cyber-protocol" id="hud-status">SYS.AUDIO // STREAMING</span>
+      </div>
+      <div class="cyber-freq" id="cyber-freq">48.0 kHz // 24-BIT</div>
+    </div>
+
+    <!-- Main Body -->
+    <div class="cyber-body">
+      <!-- Album Hologram Frame -->
+      <div class="cyber-cover-cage" id="cover-cage">
+        <img id="cover-img" src="" alt="Cover" class="cyber-cover-img" style="display:none;" />
+        <div id="cover-fallback" class="cyber-cover-fallback">
+          <span class="holo-icon">⚡</span>
+        </div>
+        <div class="cyber-glitch-line"></div>
+      </div>
+
+      <!-- Metadata Column -->
+      <div class="cyber-meta-col">
+        <div class="cyber-title-box">
+          <div class="cyber-title" id="track-title">Ожидание трека...</div>
+        </div>
+        <div class="cyber-artist" id="track-artist">—</div>
+
+        <!-- Cyber Telemetry Bar -->
+        <div class="cyber-telemetry">
+          <div class="cyber-vol-meter">
+            <span class="vol-label">SIG</span>
+            <div class="vol-blocks">
+              <span class="v-blk"></span>
+              <span class="v-blk"></span>
+              <span class="v-blk"></span>
+              <span class="v-blk"></span>
+              <span class="v-blk"></span>
+            </div>
+          </div>
+          <div class="cyber-source-tag" id="source-tag">SPOTIFY_DAEMON</div>
+        </div>
+      </div>
+
+      <!-- Cyber Audio Visualizer -->
+      <div class="cyber-vis" id="cyber-vis">
+        <div class="c-col"><div class="c-fill"></div></div>
+        <div class="c-col"><div class="c-fill"></div></div>
+        <div class="c-col"><div class="c-fill"></div></div>
+        <div class="c-col"><div class="c-fill"></div></div>
+        <div class="c-col"><div class="c-fill"></div></div>
+        <div class="c-col"><div class="c-fill"></div></div>
+      </div>
+    </div>
+
+    <!-- Bottom Accent Border -->
+    <div class="cyber-footer-line">
+      <span class="cyber-dots">■ ■ ■ ■ ■</span>
+      <span class="cyber-id">NP-2077</span>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('widget-container');
+    const coverImg = document.getElementById('cover-img');
+    const coverFallback = document.getElementById('cover-fallback');
+    const coverCage = document.getElementById('cover-cage');
+    const titleEl = document.getElementById('track-title');
+    const artistEl = document.getElementById('track-artist');
+    const hudStatus = document.getElementById('hud-status');
+    const sourceTag = document.getElementById('source-tag');
+    const cyberVis = document.getElementById('cyber-vis');
+
+    let currentTrackKey = '';
+    let hideTimeout = null;
+
+    let config = {
+      scale: 100,
+      showCover: true,
+      showArtist: true,
+      showVisualizer: true,
+      hideOnPause: true,
+      pauseDelay: 3,
+      accentColor: 'blue'
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+    if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+
+    const CYBER_COLORS = {
+      blue:    { main: '#00f0ff', glow: 'rgba(0, 240, 255, 0.45)', sec: '#ff003c' },
+      emerald: { main: '#00ff66', glow: 'rgba(0, 255, 102, 0.45)', sec: '#00f0ff' },
+      purple:  { main: '#bc13fe', glow: 'rgba(188, 19, 254, 0.45)', sec: '#00f0ff' },
+      pink:    { main: '#ff007f', glow: 'rgba(255, 0, 127, 0.45)', sec: '#ffe600' },
+      amber:   { main: '#ffe600', glow: 'rgba(255, 230, 0, 0.45)', sec: '#ff003c' },
+      white:   { main: '#00f0ff', glow: 'rgba(0, 240, 255, 0.45)', sec: '#ffffff' }
+    };
+
+    function applyConfig(cfg) {
+      if (!cfg) return;
+      config = { ...config, ...cfg };
+      if (urlParams.has('scale')) config.scale = Number(urlParams.get('scale'));
+      if (urlParams.has('accent')) config.accentColor = urlParams.get('accent');
+
+      document.documentElement.style.setProperty('--cyber-scale', (config.scale || 100) / 100);
+      const col = CYBER_COLORS[config.accentColor] || CYBER_COLORS.blue;
+      document.documentElement.style.setProperty('--cyber-main', col.main);
+      document.documentElement.style.setProperty('--cyber-glow', col.glow);
+      document.documentElement.style.setProperty('--cyber-sec', col.sec);
+
+      if (coverCage) coverCage.style.display = config.showCover !== false ? 'flex' : 'none';
+      if (artistEl) artistEl.style.display = config.showArtist !== false ? 'block' : 'none';
+      if (cyberVis) cyberVis.style.display = config.showVisualizer !== false ? 'flex' : 'none';
+    }
+
+    applyConfig(config);
+
+    function updateTrack(data) {
+      if (!data) return;
+      const isPlaying = data.status === 'playing';
+      const hasTitle = data.title && data.title.trim().length > 0;
+
+      if (!hasTitle || (!isPlaying && data.status !== 'paused')) {
+        hideWidget();
+        return;
+      }
+
+      const trackKey = (data.title || '') + '|' + (data.artist || '');
+      const isNew = trackKey !== currentTrackKey;
+      currentTrackKey = trackKey;
+
+      titleEl.textContent = data.title || 'UNKNOWN_TRACK';
+      artistEl.textContent = data.artist || (data.album || 'UNKNOWN_ARTIST');
+      if (sourceTag) {
+        sourceTag.textContent = (data.source ? data.source.replace('.exe', '') : 'STREAM').toUpperCase() + '_SYS';
+      }
+
+      // Marquee
+      titleEl.classList.remove('marquee');
+      if (titleEl.scrollWidth > titleEl.parentElement.clientWidth + 4) {
+        titleEl.classList.add('marquee');
+      }
+
+      if (data.thumbnail && data.thumbnail.length > 50) {
+        coverImg.src = data.thumbnail;
+        coverImg.style.display = 'block';
+        coverFallback.style.display = 'none';
+      } else {
+        coverImg.style.display = 'none';
+        coverFallback.style.display = 'flex';
+      }
+
+      if (isPlaying) {
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+        container.classList.remove('paused');
+        hudStatus.textContent = 'SYS.AUDIO // ACTIVE';
+        showWidget(isNew);
+      } else {
+        container.classList.add('paused');
+        hudStatus.textContent = 'SYS.AUDIO // PAUSED';
+        if (config.hideOnPause) {
+          if (!hideTimeout) {
+            const delay = Math.max(config.pauseDelay || 3, 0) * 1000;
+            hideTimeout = setTimeout(hideWidget, delay);
+          }
+        }
+      }
+    }
+
+    function showWidget(animate) {
+      container.classList.remove('hidden');
+      if (animate) {
+        container.classList.remove('animate-in');
+        void container.offsetWidth;
+        container.classList.add('animate-in');
+      }
+    }
+
+    function hideWidget() {
+      container.classList.add('hidden');
+    }
+
+    function connectSSE() {
+      const es = new EventSource('/widget/music/events');
+      es.addEventListener('track', (e) => {
+        try { updateTrack(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('config', (e) => {
+        try { applyConfig(JSON.parse(e.data)); } catch (err) { console.error(err); }
+      });
+      es.addEventListener('reload', () => window.location.reload());
+      es.onerror = () => {
+        setTimeout(connectSSE, 3000);
+        es.close();
+      };
+    }
+
+    connectSSE();
+  </script>
+</body>
+</html>

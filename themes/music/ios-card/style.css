@@ -1,0 +1,315 @@
+/* ==========================================================================
+   ReChat Music Widget — iOS Horizontal Card Theme
+   Inspired by Apple iOS Music Widget & Dynamic Frosted Glass
+   ========================================================================== */
+
+:root {
+  --card-scale: 1;
+  --accent-color: #10B981;
+  --accent-glow: rgba(16, 185, 129, 0.45);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: transparent !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+/* Outer Container */
+.ios-container {
+  position: relative;
+  transform: scale(var(--card-scale));
+  transform-origin: top left;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 1;
+}
+
+.ios-container.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(var(--card-scale)) translateY(16px);
+}
+
+.ios-container.animate-in {
+  animation: iosSpringSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes iosSpringSlide {
+  0% {
+    opacity: 0;
+    transform: scale(calc(var(--card-scale) * 0.94)) translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(var(--card-scale)) translateY(0);
+  }
+}
+
+/* Ambient Backlight Glow */
+.ios-ambient-glow {
+  position: absolute;
+  inset: -12px;
+  border-radius: 38px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(34px) saturate(180%);
+  opacity: 0.45;
+  z-index: 0;
+  pointer-events: none;
+  transition: background-image 0.6s ease, opacity 0.4s ease;
+}
+
+/* Main iOS Squircle Card */
+.ios-card {
+  position: relative;
+  z-index: 1;
+  width: 360px;
+  height: 165px;
+  background: rgba(28, 29, 37, 0.78);
+  backdrop-filter: blur(40px) saturate(190%);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow:
+    0 16px 36px -6px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  user-select: none;
+}
+
+/* Left: Cover Art Box */
+.ios-cover-box {
+  position: relative;
+  width: 125px;
+  height: 125px;
+  min-width: 125px;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow:
+    0 8px 24px -2px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: #1e2029;
+}
+
+.ios-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ios-cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2b2e3d 0%, #171821 100%);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Right: Details & Controls */
+.ios-details {
+  flex: 1;
+  min-width: 0;
+  height: 125px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Top Header Row (Badge + Equalizer) */
+.ios-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.ios-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.9);
+  transition: transform 0.2s ease;
+}
+
+.ios-badge #badge-spotify {
+  color: #1DB954;
+}
+
+.ios-badge #badge-apple {
+  color: #FC3C44;
+}
+
+.ios-badge #badge-music {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Mini Equalizer in Header */
+.ios-header-vis {
+  display: flex;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 14px;
+}
+
+.vis-bar {
+  width: 2.5px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  transform-origin: bottom;
+  animation: visWave 1s ease-in-out infinite alternate;
+}
+
+.vis-bar:nth-child(1) {
+  height: 60%;
+  animation-delay: 0.1s;
+}
+.vis-bar:nth-child(2) {
+  height: 100%;
+  animation-delay: 0.3s;
+}
+.vis-bar:nth-child(3) {
+  height: 45%;
+  animation-delay: 0.2s;
+}
+
+.paused .vis-bar {
+  animation: none !important;
+  height: 3px !important;
+  opacity: 0.35;
+}
+
+@keyframes visWave {
+  0% {
+    transform: scaleY(0.25);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+/* Middle: Typography */
+.ios-typography {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ios-title-wrap {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.ios-track-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #FFFFFF;
+  letter-spacing: -0.3px;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.ios-track-title.marquee {
+  animation: iosMarquee 10s linear infinite;
+  display: inline-block;
+  padding-right: 32px;
+}
+
+@keyframes iosMarquee {
+  0% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(0);
+  }
+  85% {
+    transform: translateX(calc(-100% + 180px));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.ios-track-artist {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.ios-track-album {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.42);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+/* Bottom: Media Controls Bar */
+.ios-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-top: 4px;
+}
+
+.ios-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.ios-btn:active {
+  transform: scale(0.9);
+}
+
+.ios-btn-secondary {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.ios-btn-secondary:hover {
+  color: #FFFFFF;
+}
+
+.ios-btn-play {
+  color: #FFFFFF;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ios-btn-play:hover {
+  transform: scale(1.08);
+}
