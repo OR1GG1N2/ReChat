@@ -1,5 +1,25 @@
-import React from 'react';
-import { ChevronDown, Play, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  ChevronDown,
+  Play,
+  Loader2,
+  Download,
+  Trash2,
+  CheckCircle2,
+  AlertCircle,
+  Cpu,
+  Sparkles,
+  XCircle,
+  HardDrive,
+} from 'lucide-react';
+import {
+  GetSupertonicStatus,
+  DownloadSupertonicModel,
+  CancelSupertonicDownload,
+  DeleteSupertonicModel,
+  GetSupertonicVoices,
+} from '../../../wailsjs/go/main/App';
+import { EventsOn } from '../../../wailsjs/runtime/runtime';
 
 function ToggleRow({ label, desc, checked, onChange, disabled = false }) {
   return (
@@ -37,6 +57,84 @@ export default function TTSTab({
   isTTSTesting,
   handleTestTTS,
 }) {
+  const [supertonicStatus, setSupertonicStatus] = useState({
+    installed: false,
+    downloading: false,
+    progress: 0,
+    currentFile: '',
+    downloadedBytes: 0,
+    totalBytes: 0,
+    speed: '',
+    error: '',
+  });
+  const [supertonicVoices, setSupertonicVoices] = useState({
+    M1: 'Supertonic — Мужской (M1 Глубокий)',
+    M2: 'Supertonic — Мужской (M2 Энергичный)',
+    F1: 'Supertonic — Женский (F1 Мягкий)',
+    F2: 'Supertonic — Женский (F2 Выразительный)',
+  });
+  const [modelActionLoading, setModelActionLoading] = useState(false);
+
+  useEffect(() => {
+    GetSupertonicStatus()
+      .then((st) => {
+        if (st) setSupertonicStatus(st);
+      })
+      .catch(() => {});
+
+    GetSupertonicVoices()
+      .then((v) => {
+        if (v && Object.keys(v).length > 0) setSupertonicVoices(v);
+      })
+      .catch(() => {});
+
+    const unsub = EventsOn('supertonic:progress', (st) => {
+      if (st) setSupertonicStatus(st);
+    });
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
+
+  const handleStartDownload = async () => {
+    setModelActionLoading(true);
+    try {
+      await DownloadSupertonicModel();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setModelActionLoading(false);
+    }
+  };
+
+  const handleCancelDownload = async () => {
+    try {
+      await CancelSupertonicDownload();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteModel = async () => {
+    if (!window.confirm('Удалить скачанные файлы модели Supertonic (~398 MB)?')) return;
+    setModelActionLoading(true);
+    try {
+      await DeleteSupertonicModel();
+      const st = await GetSupertonicStatus();
+      if (st) setSupertonicStatus(st);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setModelActionLoading(false);
+    }
+  };
+
+  const formatBytes = (bytes) => {
+    if (!bytes || bytes <= 0) return '0 MB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
   return (
     <div className={`space-y-4 ${isWide ? 'grid grid-cols-1 gap-4' : 'max-w-lg mx-auto'}`}>
       {/* 1. Playback & Voice Devices Card */}
@@ -61,7 +159,7 @@ export default function TTSTab({
                 Движок озвучки
               </span>
               <span className="text-xs text-[#8E92A4]">
-                Облачная Алиса или локальный голос системы
+                Локальная нейросеть ONNX, облачная Алиса или ОС
               </span>
             </div>
             <div className="relative">
@@ -70,20 +168,154 @@ export default function TTSTab({
                 onChange={(e) => updateAndSave({ ttsEngine: e.target.value })}
                 className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-sm text-[#ECECF1] font-medium py-1.5 pl-3 pr-8 rounded-lg border border-white/[0.04] outline-none cursor-pointer"
               >
-                <option value="yandex">Yandex Alice (Облако)</option>
-                <option value="local">Локальный синтезатор (ОС)</option>
+                <option value="supertonic">⚡ Supertonic AI (Локально ONNX)</option>
+                <option value="yandex">🟣 Yandex Alice (Облако)</option>
+                <option value="local">🎙 Локальный синтезатор (ОС)</option>
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-[#8E92A4] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
 
+          {/* Dedicated Supertonic Model Manager Card */}
+          {formData.ttsEngine === 'supertonic' && (
+            <div className="bg-[#181920] rounded-xl p-3.5 border border-blue-500/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
+                    <Cpu className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-[#ECECF1] block">
+                      Модель Supertonic TTS (ONNX)
+                    </span>
+                    <span className="text-[11px] text-[#8E92A4]">
+                      Supertone / supertonic (~398 MB)
+                    </span>
+                  </div>
+                </div>
+
+                {supertonicStatus.installed ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Установлена
+                  </span>
+                ) : supertonicStatus.downloading ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Загрузка {supertonicStatus.progress.toFixed(0)}%
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <AlertCircle className="w-3 h-3" />
+                    Не установлена
+                  </span>
+                )}
+              </div>
+
+              {/* Downloading Progress Bar */}
+              {supertonicStatus.downloading && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between text-[11px] text-[#8E92A4]">
+                    <span className="truncate max-w-[180px]">
+                      {supertonicStatus.currentFile || 'Подготовка файлов...'}
+                    </span>
+                    <span className="font-mono text-[#ECECF1]">
+                      {supertonicStatus.speed && `${supertonicStatus.speed} • `}
+                      {formatBytes(supertonicStatus.downloadedBytes)} / {formatBytes(supertonicStatus.totalBytes)}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-[#2B2D3C] rounded-full overflow-hidden relative">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300 rounded-full"
+                      style={{ width: `${Math.min(100, Math.max(2, supertonicStatus.progress))}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={handleCancelDownload}
+                      className="px-2.5 py-1 text-xs text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 rounded-md border border-rose-500/20 transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>Отменить</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Banner */}
+              {supertonicStatus.error && (
+                <div className="text-xs text-rose-400 bg-rose-500/10 p-2 rounded-lg border border-rose-500/20">
+                  {supertonicStatus.error}
+                </div>
+              )}
+
+              {/* Not Installed Actions */}
+              {!supertonicStatus.installed && !supertonicStatus.downloading && (
+                <div className="space-y-2 pt-1">
+                  <p className="text-xs text-[#8E92A4] leading-relaxed">
+                    Нейросетевой синтез голоса работает полностью на вашем ПК без интернета и задержек. Нажмите кнопку ниже, чтобы автоматически скачать необходимые веса с Hugging Face.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleStartDownload}
+                    disabled={modelActionLoading}
+                    className="w-full py-2 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    {modelActionLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    <span>Скачать модель Supertonic (~398 MB)</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Installed Actions */}
+              {supertonicStatus.installed && (
+                <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
+                  <span className="text-[11px] text-emerald-400/90 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    Готово к локальному озвучиванию
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleDeleteModel}
+                    disabled={modelActionLoading}
+                    className="text-xs text-[#8E92A4] hover:text-rose-400 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Удалить модель</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Voice selector */}
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-[#ECECF1]">
-              {formData.ttsEngine === 'local' ? 'Системный голос' : 'Голос (Алиса / Яндекс)'}
+              {formData.ttsEngine === 'supertonic'
+                ? 'Голосовой пресет Supertonic'
+                : formData.ttsEngine === 'local'
+                ? 'Системный голос'
+                : 'Голос (Алиса / Яндекс)'}
             </span>
             <div className="relative">
-              {formData.ttsEngine === 'local' ? (
+              {formData.ttsEngine === 'supertonic' ? (
+                <select
+                  value={formData.ttsVoice || 'M1'}
+                  onChange={(e) => updateAndSave({ ttsVoice: e.target.value })}
+                  className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-sm text-[#ECECF1] font-medium py-1.5 pl-3 pr-8 rounded-lg border border-white/[0.04] outline-none cursor-pointer max-w-[220px] truncate"
+                >
+                  {Object.entries(supertonicVoices).map(([id, label]) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              ) : formData.ttsEngine === 'local' ? (
                 <select
                   value={formData.ttsVoiceLocal || ''}
                   onChange={(e) => updateAndSave({ ttsVoiceLocal: e.target.value })}
@@ -246,6 +478,12 @@ export default function TTSTab({
             checked={formData.ttsAllMessages}
             onChange={(val) => updateAndSave({ ttsAllMessages: val })}
           />
+          <ToggleRow
+            label="Не озвучивать упоминания и ответы"
+            desc="Пропускать сообщения, содержащие @упоминания или адресованные другим пользователям"
+            checked={formData.ttsSkipMentions}
+            onChange={(val) => updateAndSave({ ttsSkipMentions: val })}
+          />
 
           {!formData.ttsAllMessages && (
             <div className="pt-2 pl-2 border-t border-white/[0.04] space-y-1">
@@ -318,8 +556,8 @@ export default function TTSTab({
             onChange={(val) => updateAndSave({ ttsIncludeEmoji: val })}
           />
           <ToggleRow
-            label="Озвучивать упоминания"
-            desc="Если выключено, теги @username удаляются из читаемого текста"
+            label="Озвучивать теги @упоминаний"
+            desc="Если выключено, теги @username вырезаются из читаемого текста"
             checked={formData.ttsIncludeMentions}
             onChange={(val) => updateAndSave({ ttsIncludeMentions: val })}
           />

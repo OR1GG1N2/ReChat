@@ -64,7 +64,7 @@ func EnsureDefaultTheme(themesDir string) error {
 }
 
 // watchThemes watches the themes directory for file changes and calls onReload.
-func watchThemes(themesDir string, onReload func()) {
+func watchThemes(themesDir string, stopChan chan struct{}, onReload func()) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Printf("[Widget] Watcher error: %v", err)
@@ -85,6 +85,8 @@ func watchThemes(themesDir string, onReload func()) {
 
 	for {
 		select {
+		case <-stopChan:
+			return
 		case event, ok := <-watcher.Events:
 			if !ok {
 				return

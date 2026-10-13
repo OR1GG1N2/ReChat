@@ -1,0 +1,172 @@
+    def synthesize(
+        self,
+        text: str,
+        voice_style: Style,
+        total_steps: int = DEFAULT_TOTAL_STEPS,
+        speed: float = DEFAULT_SPEED,
+        max_chunk_length: Optional[int] = None,
+        silence_duration: float = DEFAULT_SILENCE_DURATION,
+        lang: Optional[str] = None,
+        verbose: bool = False,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Synthesize speech from text.
+
+        This method automatically chunks long text into smaller segments
+        and concatenates them with silence in between.
+
+        Args:
+            text: Text to synthesize
+            voice_style: Voice style object
+            total_steps: Number of synthesis steps (default: 8)
+            speed: Speech speed multiplier (default: 1.05)
+            max_chunk_length: Max characters per chunk. If None, automatically
+                determined based on language (300 for most, 120 for Korean)
+            silence_duration: Silence between chunks in seconds (default: 0.3)
+            lang: Language code for synthesis. If ``None`` (default), the
+                code is resolved from the loaded model: ``"na"`` for
+                multilingual models (supertonic-2/3) so unknown text "just
+                works", and ``"en"`` for the English-only supertonic v1.
+                See ``AVAILABLE_LANGUAGES`` for the full list of codes
+                supported by the loaded model.
+            verbose: If True, print detailed progress information (default: False)
+
+        Returns:
+            Tuple of (waveform, duration):
+                - waveform: Audio array of shape (1, num_samples)
+                - duration: Total duration in seconds
+
+        Example:
+            ```python
+            tts = TTS()
+            style = tts.get_voice_style("M1")
+            wav, dur = tts.synthesize("Hello, world!", voice_style=style, lang="en")
+            wav_ko, dur_ko = tts.synthesize("안녕하세요!", voice_style=style, lang="ko")
+            print(f"Generated {dur[0]:.2f}s of audio")
+            ```
+        """
+        # Validate inputs
+        if not text or not text.strip():
+            raise ValueError("Text cannot be empty")
+
+        # Resolve default lang based on the loaded model:
+        #   - multilingual (supertonic-2/3) → "na" so unknown text just works
+        #   - English-only (supertonic v1)  → "en"
+        if lang is None:
+            lang = UNKNOWN_LANGUAGE if self.is_multilingual else DEFAULT_LANGUAGE
+
+        # Validate language and handle non-multilingual models
+        if self.is_multilingual:
+            if lang not in AVAILABLE_LANGUAGES:
+                raise ValueError(
+                    f"Invalid language: '{lang}'. "
+                    f"Supported languages: {', '.join(AVAILABLE_LANGUAGES)}"
+                )
+            effective_lang: Optional[str] = lang
+        else:
+            # Non-multilingual model (supertonic v1) - ignore language parameter
+            if lang != "en" and verbose:
+                print(f"⚠️  Model '{self.model_name}' is English-only. Ignoring lang='{lang}'.")
+            effective_lang = None  # Don't add language tokens for v1
+
+        if verbose:
+            print(f"📝 Input text length: {len(text)} characters")
+            if self.is_multilingual:
+                print(f"🌐 Language: {lang}")
+            else:
+                print(f"🌐 Model: {self.model_name} (English only)")
+
+        if len(text) > MAX_TEXT_LENGTH:
+            raise ValueError(
+                f"Text length ({len(text)}) exceeds maximum allowed length "
+                f"({MAX_TEXT_LENGTH}). Please split your text into smaller chunks."
+            )
+
+        if not isinstance(voice_style, Style):
+            raise TypeError(
+                f"voice_style must be a Style object, got {type(voice_style).__name__}. "
+                f"Use get_voice_style() to load a style."
+            )
+
+        if not (total_steps >= MIN_TOTAL_STEPS and total_steps <= MAX_TOTAL_STEPS):
+            raise ValueError(
+                f"total_steps must be between {MIN_TOTAL_STEPS} and {MAX_TOTAL_STEPS}, "
+                f"got {total_steps}. Higher values = better quality but slower."
+            )
+
+        if silence_duration < 0:
+            raise ValueError(f"silence_duration must be non-negative, got {silence_duration}")
+
+        # Validate text characters if verbose
+        is_valid, unsupported = self.model.text_processor.validate_text(text)
+        if not is_valid:
+            raise ValueError(f"Found {len(unsupported)} unsupported character(s): {unsupported}")
+
+        # Determine max_chunk_length based on language if not specified
+        if max_chunk_length is None:
+            max_chunk_length = (
+                DEFAULT_MAX_CHUNK_LENGTH_KO if effective_lang == "ko" else DEFAULT_MAX_CHUNK_LENGTH
+            )
+
+        # Chunk text for processing
+        text_chunks = chunk_text(text, max_chunk_length)
+
+        if verbose:
+            print(f"Split into {len(text_chunks)} chunk(s)")
+            if len(text_chunks) > 1:
+                for i, chunk in enumerate(text_chunks[:3]):  # Show first 3 chunks
+                    print(f"Chunk {i+1}: {chunk[:60]}{'...' if len(chunk) > 60 else ''}")
+                if len(text_chunks) > 3:
+                    print(f"... and {len(text_chunks) - 3} more chunk(s)")
+            print(
+                f"Synthesizing audio... Settings: steps={total_steps}, speed={speed:.2f}x, sample_rate={self.sample_rate}Hz"
+            )
+
+        # Collect all waveforms and durations in lists to avoid repeated concatenation
+        wav_list = []
+        dur_list = []
+        for i, text_chunk in enumerate(text_chunks):
+            if verbose:
+                print(f"   [{i+1}/{len(text_chunks)}] Processing chunk... ", end="", flush=True)
+
+            logger.debug(f"Processing chunk {i+1}/{len(text_chunks)}")
+            wav, dur_onnx = self.model(
+                [text_chunk], voice_style, total_steps, speed, effective_lang
+            )
+
+            if verbose:
+                print(f"✓ ({dur_onnx[0]:.2f}s)")
+
+            # Validate waveform shape
+            if wav.shape[0] != 1:
+                raise RuntimeError(f"Expected wav shape (1, samples), got {wav.shape}")
+
+            wav_list.append(wav)
+            dur_list.append(dur_onnx)
+
+        # Type guard: lists should never be empty after processing
+        assert len(wav_list) > 0 and len(dur_list) > 0, "No audio generated"
+
+        # Build list of arrays to concatenate: [wav1, silence, wav2, silence, wav3, ...]
+        silence = np.zeros((1, int(silence_duration * self.sample_rate)), dtype=np.float32)
+        arrays_to_concat = []
+        for i, wav in enumerate(wav_list):
+            arrays_to_concat.append(wav)
+            if i < len(wav_list) - 1:  # Don't add silence after last chunk
+                arrays_to_concat.append(silence)
+
+        # Single concatenation operation
+        wav_cat = np.concatenate(arrays_to_concat, axis=1)
+
+        # Calculate total duration
+        total_audio_dur = sum(dur_list)
+        total_silence_dur = silence_duration * (len(wav_list) - 1)
+        dur_cat = total_audio_dur + total_silence_dur
+
+        if verbose:
+            total_samples = wav_cat.shape[1]
+            print("Generation complete!")
+            print(f"Total duration: {dur_cat[0]:.2f}s")
+            print(f"Total samples: {total_samples:,}")
+            print(f"Array shape: {wav_cat.shape}")
+
+        return wav_cat, dur_cat

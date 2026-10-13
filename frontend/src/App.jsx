@@ -2,11 +2,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import {
   GetJoinedChannels,
+  GetJoinedKickChannels,
+  JoinKickChannel,
   GetSettings,
   GetGlobalBadges,
   GetEmotes,
   ResizeWindowForSettings,
   SpeakText,
+  SpeakSupertonic,
+  UpdateTTSStatus,
   JoinChannel,
   SendMessage,
   ToggleGameMode,
@@ -22,7 +26,7 @@ import InlineEventMessage from './components/InlineEventMessage';
 import NewMessagesBanner from './components/NewMessagesBanner';
 import TwitchIcon from './components/TwitchIcon';
 import { getTwitchIconColor } from './utils/channelColors';
-import { Radio, Plus, Settings, Send, LogIn, ChevronDown } from 'lucide-react';
+import { Radio, Plus, Settings, Send, LogIn, ChevronDown, Smile, X, Volume2, Loader2, Sparkles } from 'lucide-react';
 
 // Helper filters for ignoring commands, users, and emotes
 function isUserIgnored(user, ignoredUsers) {
@@ -57,7 +61,12 @@ function stripEmotesForTTS(text, emoteMap, msgEmoteMap) {
   return filtered.join(' ').trim();
 }
 
-function isMessageEligibleForTTS(msg, s) {
+function isMessageEligibleForTTS(msg, s, mutedChannelsSet) {
+  // 1. Channel muted/disabled in top panel
+  if (msg.channel && mutedChannelsSet && mutedChannelsSet.has(msg.channel.toLowerCase())) {
+    return false;
+  }
+
   // DonationAlerts donations have their own TTS toggle and minimum threshold
   if (msg.eventType === 'donation') {
     if (s.daTTS === false) return false;
@@ -83,6 +92,17 @@ function isMessageEligibleForTTS(msg, s) {
     return false;
   }
 
+  // Mentions / Replies skipping if ttsSkipMentions is enabled
+  const isReply = Boolean(
+    (msg.eventData && msg.eventData['reply-parent-msg-id']) ||
+    (msg.message && msg.message.trim().startsWith('@'))
+  );
+  const hasMention = Boolean(msg.message && /@[\p{L}\p{N}_]+/u.test(msg.message));
+
+  if (s.ttsSkipMentions && (isReply || hasMention)) {
+    return false;
+  }
+
   if (s.ttsAllMessages !== false) {
     return true;
   }
@@ -91,10 +111,6 @@ function isMessageEligibleForTTS(msg, s) {
   const isSub = badges.includes('subscriber');
   const isVip = badges.includes('vip');
   const isMod = badges.includes('moderator') || badges.includes('broadcaster');
-  const isReply = Boolean(
-    (msg.eventData && msg.eventData['reply-parent-msg-id']) ||
-    (msg.message && msg.message.startsWith('@'))
-  );
   const isHighlighted = Boolean(
     (msg.eventData && msg.eventData['msg-id'] === 'highlighted-message') ||
     msg.isHighlighted ||
@@ -164,7 +180,8 @@ function formatTextForTTS(msg, s, emoteMap) {
 
   // 2. Mentions (if ttsIncludeMentions is false)
   if (!s.ttsIncludeMentions) {
-    text = text.replace(/@[\w\d_]+/g, '');
+    text = text.replace(/@[\p{L}\p{N}_]+[,:]?\s*/gu, '');
+    text = text.replace(/^[,:\s-]+/, '');
   }
 
   // 3. Emotes (if ttsIncludeEmotes is false OR s.ttsFilterEmotes is true)
@@ -217,6 +234,7 @@ export default function App() {
   const [activeView, setActiveView] = useState('chat'); // 'chat' or 'settings'
 
   const [joinedChannels, setJoinedChannels] = useState([]);
+  const [joinedKickChannels, setJoinedKickChannels] = useState([]);
   const [mutedChannels, setMutedChannels] = useState(new Set());
   const [dynamicBadges, setDynamicBadges] = useState({});
   const [emoteMap, setEmoteMap] = useState({});
@@ -227,6 +245,9 @@ export default function App() {
   const [isGameMode, setIsGameMode] = useState(false);
   const [currentGoal, setCurrentGoal] = useState(null);
   const [hideGoalBar, setHideGoalBar] = useState(false);
+  const [isChatHovered, setIsChatHovered] = useState(false);
+  const [showEmotePicker, setShowEmotePicker] = useState(false);
+  const [emoteSearch, setEmoteSearch] = useState('');
 
   useEffect(() => {
     if (isGameMode) {
@@ -273,6 +294,7 @@ export default function App() {
     ttsIncludeEmotes: false,
     ttsIncludeEmoji: false,
     ttsIncludeMentions: true,
+    ttsSkipMentions: false,
     ttsRemoveWords: '',
     ignoreCommands: true,
     commandPrefixes: '!, /, ., $, ?',
@@ -288,6 +310,10 @@ export default function App() {
   const ttsPlayingRef = useRef(false);
   const currentAudioRef = useRef(null);
   const currentUtteranceResolveRef = useRef(null);
+  const [currentTTSItem, setCurrentTTSItem] = useState(null);
+  const currentTTSItemRef = useRef(null);
+  const ttsGenerationIdRef = useRef(0);
+  const mutedChannelsRef = useRef(mutedChannels);
   const settingsRef = useRef(settings);
   const autoScrollRef = useRef(autoScroll);
 
@@ -367,6 +393,10 @@ export default function App() {
   }, [settings]);
 
   useEffect(() => {
+    mutedChannelsRef.current = mutedChannels;
+  }, [mutedChannels]);
+
+  useEffect(() => {
     autoScrollRef.current = autoScroll;
   }, [autoScroll]);
 
@@ -389,6 +419,12 @@ export default function App() {
       })
       .catch((err) => console.error('Failed to fetch channels:', err));
 
+    GetJoinedKickChannels()
+      .then((kchans) => {
+        if (kchans) setJoinedKickChannels(kchans);
+      })
+      .catch((err) => console.error('Failed to fetch Kick channels:', err));
+
     GetGlobalBadges()
       .then((badges) => {
         if (badges) setDynamicBadges(badges);
@@ -409,25 +445,52 @@ export default function App() {
         if (emotes) setEmoteMap(emotes);
       })
       .catch((err) => console.error('Failed to fetch emotes:', err));
-  }, [joinedChannels]);
+  }, [joinedChannels, joinedKickChannels]);
 
-  // TTS queue processor — plays messages one at a time
+  // TTS queue processor — plays messages one at a time with real-time status updates
   const processTTSQueue = async () => {
     if (ttsPlayingRef.current) return;
+    if (!settingsRef.current.ttsEnabled) return;
     ttsPlayingRef.current = true;
     setIsTTSActive(true);
 
     while (ttsQueueRef.current.length > 0) {
-      const text = ttsQueueRef.current.shift();
+      if (!settingsRef.current.ttsEnabled) {
+        ttsQueueRef.current = [];
+        break;
+      }
+
+      const item = ttsQueueRef.current.shift();
+      if (!item) continue;
+
+      const itemChannel = (item.msg?.channel || '').toLowerCase();
+      if (itemChannel && mutedChannelsRef.current.has(itemChannel)) {
+        continue;
+      }
+
+      const text = typeof item === 'object' && item !== null ? item.text : String(item);
+      const author = typeof item === 'object' && item !== null ? item.author : 'Зритель';
+      const currentSettings = settingsRef.current;
+      const engine = currentSettings.ttsEngine || 'supertonic';
+      const voice = currentSettings.ttsVoice || (engine === 'supertonic' ? 'M1' : 'shitova.us');
+
+      const genId = ++ttsGenerationIdRef.current;
+
       try {
-        const currentSettings = settingsRef.current;
         const playbackRate = Math.min(Math.max(Number(currentSettings.ttsSpeed) || 1.0, 0.5), 2.5);
 
+        // 1. Notify status: Generating
+        const generatingInfo = { state: 'generating', author, text, engine, voice, channel: itemChannel };
+        currentTTSItemRef.current = generatingInfo;
+        setCurrentTTSItem(generatingInfo);
+        UpdateTTSStatus('generating', author, text, voice, engine, 0).catch(() => {});
+
         if (
-          currentSettings.ttsEngine === 'local' &&
+          engine === 'local' &&
           typeof window !== 'undefined' &&
           window.speechSynthesis
         ) {
+          if (ttsGenerationIdRef.current !== genId || !settingsRef.current.ttsEnabled) break;
           await new Promise((resolve) => {
             currentUtteranceResolveRef.current = resolve;
             const utterance = new SpeechSynthesisUtterance(text);
@@ -437,11 +500,11 @@ export default function App() {
                 ? currentSettings.ttsVolume
                 : 1.0;
             const voices = window.speechSynthesis.getVoices();
-            const voice = voices.find(
+            const voiceObj = voices.find(
               (v) => v.name === currentSettings.ttsVoiceLocal
             );
-            if (voice) {
-              utterance.voice = voice;
+            if (voiceObj) {
+              utterance.voice = voiceObj;
             } else if (voices.length > 0) {
               utterance.voice = voices[0];
             }
@@ -449,15 +512,37 @@ export default function App() {
               currentUtteranceResolveRef.current = null;
               resolve();
             };
+            utterance.onstart = () => {
+              if (ttsGenerationIdRef.current !== genId || !settingsRef.current.ttsEnabled) {
+                window.speechSynthesis.cancel();
+                onFinish();
+                return;
+              }
+              const playingInfo = { state: 'playing', author, text, engine, voice, channel: itemChannel };
+              currentTTSItemRef.current = playingInfo;
+              setCurrentTTSItem(playingInfo);
+              UpdateTTSStatus('playing', author, text, voice, engine, 0).catch(() => {});
+            };
             utterance.onend = onFinish;
             utterance.onerror = onFinish;
             window.speechSynthesis.speak(utterance);
           });
         } else {
-          const dataUri = await SpeakText(
-            text,
-            currentSettings.ttsVoice || 'shitova.us'
-          );
+          let dataUri = '';
+          if (engine === 'supertonic') {
+            dataUri = await SpeakSupertonic(text, voice);
+          } else {
+            dataUri = await SpeakText(text, voice);
+          }
+
+          // Abort if stopped, disabled or muted while synthesis was running
+          if (ttsGenerationIdRef.current !== genId || !settingsRef.current.ttsEnabled) {
+            break;
+          }
+          if (itemChannel && mutedChannelsRef.current.has(itemChannel)) {
+            continue;
+          }
+
           if (dataUri) {
             await new Promise((resolve) => {
               const audio = new Audio(dataUri);
@@ -486,6 +571,21 @@ export default function App() {
                 currentUtteranceResolveRef.current = null;
                 resolve();
               };
+
+              audio.onplay = () => {
+                if (ttsGenerationIdRef.current !== genId || !settingsRef.current.ttsEnabled) {
+                  audio.pause();
+                  audio.src = '';
+                  onFinish();
+                  return;
+                }
+                const duration = audio.duration || 0;
+                const playingInfo = { state: 'playing', author, text, engine, voice, channel: itemChannel };
+                currentTTSItemRef.current = playingInfo;
+                setCurrentTTSItem(playingInfo);
+                UpdateTTSStatus('playing', author, text, voice, engine, duration).catch(() => {});
+              };
+
               audio.onended = onFinish;
               audio.onerror = onFinish;
               audio.play().catch(onFinish);
@@ -494,17 +594,25 @@ export default function App() {
         }
       } catch (err) {
         console.error('[TTS] Error:', err);
+      } finally {
+        currentTTSItemRef.current = null;
+        setCurrentTTSItem(null);
+        UpdateTTSStatus('idle', '', '', '', '', 0).catch(() => {});
       }
     }
 
     ttsPlayingRef.current = false;
     setIsTTSActive(false);
+    currentTTSItemRef.current = null;
+    setCurrentTTSItem(null);
   };
 
   const handleSkipCurrentTTS = () => {
+    ttsGenerationIdRef.current += 1;
     if (currentAudioRef.current) {
       try {
         currentAudioRef.current.pause();
+        currentAudioRef.current.src = '';
         currentAudioRef.current.currentTime = 0;
       } catch (_) {}
       currentAudioRef.current = null;
@@ -516,13 +624,34 @@ export default function App() {
       currentUtteranceResolveRef.current();
       currentUtteranceResolveRef.current = null;
     }
+    currentTTSItemRef.current = null;
+    setCurrentTTSItem(null);
+    UpdateTTSStatus('idle', '', '', '', '', 0).catch(() => {});
   };
 
   const handleStopTTS = () => {
+    ttsGenerationIdRef.current += 1;
     ttsQueueRef.current = [];
     handleSkipCurrentTTS();
     ttsPlayingRef.current = false;
     setIsTTSActive(false);
+    currentTTSItemRef.current = null;
+    setCurrentTTSItem(null);
+  };
+
+  const handleToggleTTS = async () => {
+    const nextVal = !settings.ttsEnabled;
+    if (!nextVal) {
+      handleStopTTS();
+    }
+    const updated = { ...settings, ttsEnabled: nextVal };
+    setSettings(updated);
+    settingsRef.current = updated;
+    try {
+      await SaveSettings(updated);
+    } catch (err) {
+      console.error('Failed to save TTS toggle:', err);
+    }
   };
 
   // Keyboard shortcut listener for Game Mode toggle and skipping current TTS
@@ -666,13 +795,26 @@ export default function App() {
         setUnreadCount((c) => c + 1);
       }
 
+      // Play soft mention chime if user is directly mentioned in chat
+      if (s.username && text.toLowerCase().includes(`@${s.username.toLowerCase()}`)) {
+        playMentionSound();
+      }
+
+      // Check if channel is muted/disabled in top bar
+      const channelLower = (msg.channel || '').toLowerCase();
+      const isChannelMuted = channelLower && mutedChannelsRef.current.has(channelLower);
+
       // Queue for TTS with detailed targeting and text cleaning
-      const eligible = isMessageEligibleForTTS(msg, s);
-      const shouldSkipTTS = !s.ttsEnabled || isIgnored || isCmd || isEmoteOnly || !eligible;
+      const eligible = !isChannelMuted && isMessageEligibleForTTS(msg, s, mutedChannelsRef.current);
+      const shouldSkipTTS = !s.ttsEnabled || isChannelMuted || isIgnored || isCmd || isEmoteOnly || !eligible;
       if (!shouldSkipTTS) {
         const ttsText = formatTextForTTS(msg, s, emoteMap);
         if (ttsText) {
-          ttsQueueRef.current.push(ttsText);
+          ttsQueueRef.current.push({
+            text: ttsText,
+            author: msg.displayName || msg.user || 'Зритель',
+            msg,
+          });
           processTTSQueue();
         }
       }
@@ -695,6 +837,10 @@ export default function App() {
       setJoinedChannels(chans || []);
     });
 
+    const unoffKickChannels = EventsOn('kick:channels:updated', (kchans) => {
+      setJoinedKickChannels(kchans || []);
+    });
+
     const unoffBadges = EventsOn('badges:loaded', (badgeMap) => {
       setDynamicBadges(badgeMap || {});
     });
@@ -715,6 +861,7 @@ export default function App() {
       if (typeof unoffSettings === 'function') unoffSettings();
       if (typeof unoffAuth === 'function') unoffAuth();
       if (typeof unoffChannels === 'function') unoffChannels();
+      if (typeof unoffKickChannels === 'function') unoffKickChannels();
       if (typeof unoffBadges === 'function') unoffBadges();
       if (typeof unoffEmotes === 'function') unoffEmotes();
       if (typeof unoffGoal === 'function') unoffGoal();
@@ -722,10 +869,10 @@ export default function App() {
   }, [settings.maxMessages, emoteMap]);
 
   useEffect(() => {
-    if (autoScroll && messagesEndRef.current) {
+    if (autoScroll && !isChatHovered && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, autoScroll]);
+  }, [messages, autoScroll, isChatHovered]);
 
   const handleScroll = () => {
     if (!chatContainerRef.current) return;
@@ -750,11 +897,27 @@ export default function App() {
     const lower = channelName.toLowerCase();
     setMutedChannels((prev) => {
       const next = new Set(prev);
+      const isMuting = !next.has(lower);
       if (next.has(lower)) {
         next.delete(lower);
       } else {
         next.add(lower);
       }
+      mutedChannelsRef.current = next;
+
+      // If muting this channel, discard queued TTS items from this channel
+      if (isMuting) {
+        ttsQueueRef.current = ttsQueueRef.current.filter((item) => {
+          const itemChan = (item.msg?.channel || '').toLowerCase();
+          return itemChan !== lower;
+        });
+
+        // If current playing TTS message is from this channel, skip it immediately
+        if (currentTTSItemRef.current?.channel?.toLowerCase() === lower) {
+          handleSkipCurrentTTS();
+        }
+      }
+
       return next;
     });
   };
@@ -764,6 +927,43 @@ export default function App() {
       await JoinChannel(channelName);
     } catch (err) {
       console.error('Failed to join channel:', err);
+    }
+  };
+
+  const handleAddKickChannel = async (channelName) => {
+    try {
+      await JoinKickChannel(channelName);
+    } catch (err) {
+      console.error('Failed to join Kick channel:', err);
+    }
+  };
+
+  const playMentionSound = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.22);
+    } catch (_) {}
+  };
+
+  const handleMentionUser = (username) => {
+    if (!username) return;
+    setChatInput((prev) => {
+      const prefix = `@${username} `;
+      if (prev.startsWith(prefix)) return prev;
+      return `${prefix}${prev}`;
+    });
+    if (chatInputRef.current) {
+      chatInputRef.current.focus();
     }
   };
 
@@ -836,6 +1036,23 @@ export default function App() {
         />
       )}
 
+      {/* Multi-platform Channel Bar */}
+      {!isGameMode && (
+        <ChannelBar
+          joinedChannels={joinedChannels}
+          joinedKickChannels={joinedKickChannels}
+          mutedChannels={mutedChannels}
+          onToggleMuteChannel={toggleMuteChannel}
+          onAddChannel={handleAddChannel}
+          onAddKickChannel={handleAddKickChannel}
+          onOpenSettings={openSettings}
+          settings={settings}
+          onToggleTTS={handleToggleTTS}
+          onStopTTS={handleStopTTS}
+          ttsActive={isTTSActive}
+        />
+      )}
+
       {/* Goal Tracker Bar pinned under channel / title header */}
       {!isGameMode && settings.daShowGoalBar !== false && currentGoal && !hideGoalBar && (
         <GoalTrackerBar
@@ -861,6 +1078,8 @@ export default function App() {
       <main
         ref={chatContainerRef}
         onScroll={handleScroll}
+        onMouseEnter={() => setIsChatHovered(true)}
+        onMouseLeave={() => setIsChatHovered(false)}
         className={`relative flex-1 overflow-y-auto px-1.5 py-1.5 space-y-0.5 custom-scrollbar ${
           isGameMode
             ? 'bg-transparent border-none outline-none shadow-none no-scrollbar scrollbar-none [text-shadow:_0_1px_4px_rgba(0,0,0,0.9),_0_0_2px_rgba(0,0,0,0.9)]'
@@ -878,18 +1097,18 @@ export default function App() {
 
             <div className="space-y-1 max-w-xs">
               <h3 className="text-xs font-semibold text-[#ECECF1]">
-                {joinedChannels.length === 0
+                {joinedChannels.length === 0 && joinedKickChannels.length === 0
                   ? 'Нет подключенных каналов'
                   : 'Ожидание сообщений...'}
               </h3>
               <p className="text-[11px] text-[#6C7082] leading-relaxed">
-                {joinedChannels.length === 0
-                  ? 'Перейдите в настройки, чтобы добавить Twitch-канал для мониторинга.'
-                  : `Слушаем ${joinedChannels.map((c) => '#' + c).join(', ')}`}
+                {joinedChannels.length === 0 && joinedKickChannels.length === 0
+                  ? 'Перейдите в настройки или добавьте канал в верхней панели.'
+                  : `Слушаем ${[...joinedChannels.map((c) => '#' + c), ...joinedKickChannels.map((k) => 'kick:' + k)].join(', ')}`}
               </p>
             </div>
 
-            {joinedChannels.length === 0 && (
+            {joinedChannels.length === 0 && joinedKickChannels.length === 0 && (
               <button
                 type="button"
                 onClick={openSettings}
@@ -928,6 +1147,7 @@ export default function App() {
                 settings={settings}
                 dynamicBadges={dynamicBadges}
                 emoteMap={emoteMap}
+                onMentionUser={handleMentionUser}
               />
             );
           })
@@ -944,20 +1164,45 @@ export default function App() {
           onClick={scrollToBottom}
         />
 
-        {/* Floating TTS speaking indicator with Skip button */}
-        {isTTSActive && (
-          <div className="ml-auto pointer-events-auto flex items-center gap-2 px-2.5 py-1 mb-1 rounded-[6px] bg-[#242631]/95 backdrop-blur border border-white/[0.08] shadow-lg select-none text-xs animate-fade-in">
-            <div className="flex items-center gap-1.5 text-blue-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
-              <span className="text-[11px] font-semibold">TTS</span>
+        {/* Hover freeze notice */}
+        {isChatHovered && !autoScroll && (
+          <div className="pointer-events-auto ml-2 mb-1 px-2.5 py-0.5 rounded-full bg-[#242631]/95 border border-white/[0.08] text-[10px] font-medium text-amber-400 flex items-center gap-1 shadow-md animate-fade-in">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>Автопрокрутка на паузе</span>
+          </div>
+        )}
+
+        {/* Floating TTS status & playback widget with Skip button */}
+        {(isTTSActive || currentTTSItem) && (
+          <div className="ml-auto pointer-events-auto flex items-center gap-2.5 px-3 py-1.5 mb-1.5 rounded-xl bg-[#1c1e2a]/95 backdrop-blur-md border border-white/[0.1] shadow-2xl select-none text-xs animate-fade-in max-w-[340px]">
+            {currentTTSItem?.state === 'generating' ? (
+              <div className="flex items-center gap-1.5 text-amber-400 shrink-0">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span className="text-[11px] font-bold tracking-wide">
+                  {currentTTSItem?.engine === 'supertonic' ? '⚡ Supertonic AI' : 'Генерация TTS'}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-blue-400 shrink-0">
+                <Volume2 className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                <span className="text-[10px] font-mono font-bold bg-white/[0.08] px-1.5 py-0.5 rounded text-blue-300">
+                  {currentTTSItem?.voice || 'TTS'}
+                </span>
+              </div>
+            )}
+
+            <div className="truncate text-[11px] text-[#C7CBD6] flex-1">
+              <span className="font-semibold text-white">@{currentTTSItem?.author || 'Зритель'}</span>
+              {currentTTSItem?.text ? `: «${currentTTSItem.text}»` : '...'}
             </div>
+
             <button
               type="button"
               onClick={handleSkipCurrentTTS}
-              className="px-2 py-0.5 bg-rose-500/20 hover:bg-rose-500/30 active:bg-rose-500/40 text-rose-300 text-[10px] font-bold rounded border border-rose-500/30 transition-colors cursor-pointer flex items-center gap-1"
+              className="px-2 py-0.5 bg-rose-500/20 hover:bg-rose-500/30 active:bg-rose-500/40 text-rose-300 text-[10px] font-bold rounded-lg border border-rose-500/30 transition-colors cursor-pointer flex items-center gap-1 shrink-0"
               title={`Пропустить озвучку (${settings.ttsSkipHotkey || 'Esc'})`}
             >
-              <span>Пропустить</span>
+              <span>Пропуск</span>
               <kbd className="text-[9px] opacity-75 font-mono">[{settings.ttsSkipHotkey || 'Esc'}]</kbd>
             </button>
           </div>
@@ -966,7 +1211,50 @@ export default function App() {
 
       {/* Docked Chat Input Bar (disabled/hidden in Game Mode) */}
       {!isGameMode && (
-        <footer className="shrink-0 p-2 bg-[#181920] border-t border-white/[0.04]">
+        <footer className="shrink-0 p-2 bg-[#181920] border-t border-white/[0.04] relative">
+          {/* Emote Picker Popover */}
+          {showEmotePicker && (
+            <div className="absolute bottom-14 right-2 w-72 max-h-64 bg-[#242631]/95 border border-white/[0.08] rounded-2xl shadow-2xl p-2.5 z-30 flex flex-col gap-2 font-sans backdrop-blur-md animate-fade-in">
+              <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-white/[0.06]">
+                <input
+                  type="text"
+                  placeholder="Поиск смайла..."
+                  value={emoteSearch}
+                  onChange={(e) => setEmoteSearch(e.target.value)}
+                  className="flex-1 bg-[#181920] border border-white/[0.06] rounded-lg px-2.5 py-1 text-xs text-[#ECECF1] placeholder:text-[#6C7082] outline-none"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEmotePicker(false)}
+                  className="p-1 text-[#8E92A4] hover:text-[#ECECF1] rounded cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto grid grid-cols-5 gap-1.5 custom-scrollbar max-h-48 p-1">
+                {Object.entries(emoteMap)
+                  .filter(([name]) => !emoteSearch || name.toLowerCase().includes(emoteSearch.toLowerCase()))
+                  .slice(0, 60)
+                  .map(([name, url]) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        setChatInput((prev) => `${prev ? prev.trim() + ' ' : ''}${name} `);
+                        setShowEmotePicker(false);
+                        chatInputRef.current?.focus();
+                      }}
+                      title={name}
+                      className="p-1.5 rounded-lg hover:bg-white/[0.08] flex items-center justify-center transition-colors cursor-pointer group"
+                    >
+                      <img src={url} alt={name} className="h-6 object-contain group-hover:scale-110 transition-transform" />
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {sendError && (
             <div className="text-[11px] text-rose-400 font-medium px-2 pb-1.5 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
@@ -1022,6 +1310,20 @@ export default function App() {
                 }
                 className="flex-1 min-w-0 bg-transparent text-xs text-[#ECECF1] placeholder:text-[#6C7082] outline-none select-text disabled:opacity-50"
               />
+
+              {/* Emote Picker button */}
+              <button
+                type="button"
+                onClick={() => setShowEmotePicker(!showEmotePicker)}
+                className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer shrink-0 ${
+                  showEmotePicker
+                    ? 'bg-purple-500/20 text-purple-400'
+                    : 'text-[#8E92A4] hover:text-[#ECECF1] hover:bg-white/[0.04]'
+                }`}
+                title="Смайлы (7TV, BTTV, FFZ, Twitch)"
+              >
+                <Smile className="w-4 h-4" />
+              </button>
 
               {/* Send button */}
               <button

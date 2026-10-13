@@ -41,6 +41,7 @@ type App struct {
 	mediaManager   *media.Manager
 	daClient       *donationalerts.Client
 	pipeline       *pipeline.Pipeline
+	supertonicMgr  *tts.SupertonicManager
 	isGameMode     bool
 	lastToggleTime time.Time
 	gameModeMu     sync.Mutex
@@ -49,15 +50,16 @@ type App struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	app := &App{
-		twitchClient: twitch.NewClient(),
-		badgeFetcher: twitch.NewBadgeFetcher(),
-		emoteFetcher: twitch.NewEmoteFetcher(),
-		ttsClient:    tts.NewYandexTTS(),
-		widgetServer: widget.NewWidgetServer(3500),
-		mediaManager: media.NewManager(),
-		daClient:     donationalerts.NewClient(""),
-		pipeline:     pipeline.New(),
-		kickClient:   kick.NewClient(),
+		twitchClient:  twitch.NewClient(),
+		badgeFetcher:  twitch.NewBadgeFetcher(),
+		emoteFetcher:  twitch.NewEmoteFetcher(),
+		ttsClient:     tts.NewYandexTTS(),
+		supertonicMgr: tts.NewSupertonicManager(),
+		widgetServer:  widget.NewWidgetServer(3500),
+		mediaManager:  media.NewManager(),
+		daClient:      donationalerts.NewClient(""),
+		pipeline:      pipeline.New(),
+		kickClient:    kick.NewClient(),
 	}
 
 	app.widgetServer.SetBadgeFetcher(app.badgeFetcher.GetBadgeMap)
@@ -129,6 +131,15 @@ func (a *App) startup(ctx context.Context) {
 	settings := config.LoadSettings()
 	proxy.Configure(settings)
 	a.twitchClient.SetContext(ctx)
+
+	// Emit Supertonic model download progress to frontend
+	if a.supertonicMgr != nil {
+		a.supertonicMgr.SetOnProgress(func(status tts.SupertonicStatus) {
+			if a.ctx != nil {
+				runtime.EventsEmit(a.ctx, "supertonic:progress", status)
+			}
+		})
+	}
 
 	// Fetch Twitch global badges in background
 	go func() {
@@ -245,6 +256,16 @@ func (a *App) startup(ctx context.Context) {
 	}
 }
 
+// QuitApp cleanly terminates all background processes and exits the application
+func (a *App) QuitApp() {
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		os.Exit(0)
+	}()
+	a.shutdown(context.Background())
+	os.Exit(0)
+}
+
 // shutdown is called when the app closes
 func (a *App) shutdown(ctx context.Context) {
 	overlay.StopGlobalHotkey()
@@ -254,6 +275,9 @@ func (a *App) shutdown(ctx context.Context) {
 	a.twitchClient.Disconnect()
 	if a.eventsubClient != nil {
 		a.eventsubClient.Stop()
+	}
+	if a.kickClient != nil {
+		a.kickClient.Disconnect()
 	}
 	if a.ttsClient != nil {
 		a.ttsClient.Close()
@@ -266,6 +290,9 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.widgetServer != nil {
 		a.widgetServer.Stop()
+	}
+	if a.supertonicMgr != nil {
+		a.supertonicMgr.Close()
 	}
 }
 
@@ -321,6 +348,9 @@ func (a *App) syncJoinedChannelsToDB() {
 	settings := config.LoadSettings()
 	settings.JoinedChannels = joined
 	_ = config.SaveSettings(settings)
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "channels:updated", joined)
+	}
 }
 
 // GetJoinedChannels returns list of active joined channels
@@ -375,6 +405,9 @@ func (a *App) syncKickChannelsToDB() {
 	settings := config.LoadSettings()
 	settings.KickChannels = joined
 	_ = config.SaveSettings(settings)
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "kick:channels:updated", joined)
+	}
 }
 
 // ConnectChannel alias for backwards compatibility
@@ -650,6 +683,118 @@ func (a *App) SpeakText(text string, voice string) (string, error) {
 // GetTTSVoices returns available TTS voice IDs and labels
 func (a *App) GetTTSVoices() map[string]string {
 	return tts.GetVoiceMap()
+}
+
+// GetSupertonicStatus returns local Supertonic model installation & download status
+func (a *App) GetSupertonicStatus() tts.SupertonicStatus {
+	if a.supertonicMgr == nil {
+		return tts.SupertonicStatus{}
+	}
+	return a.supertonicMgr.GetStatus()
+}
+
+// DownloadSupertonicModel initiates downloading the Supertonic model from Hugging Face
+func (a *App) DownloadSupertonicModel() error {
+	if a.supertonicMgr == nil {
+		return fmt.Errorf("Supertonic manager not initialized")
+	}
+	return a.supertonicMgr.StartDownload()
+}
+
+// CancelSupertonicDownload cancels an in-progress model download
+func (a *App) CancelSupertonicDownload() {
+	if a.supertonicMgr != nil {
+		a.supertonicMgr.CancelDownload()
+	}
+}
+
+// DeleteSupertonicModel deletes local model assets from disk
+func (a *App) DeleteSupertonicModel() error {
+	if a.supertonicMgr == nil {
+		return fmt.Errorf("Supertonic manager not initialized")
+	}
+	return a.supertonicMgr.DeleteModel()
+}
+
+// GetSupertonicVoices returns available Supertonic voice styles
+func (a *App) GetSupertonicVoices() map[string]string {
+	if a.supertonicMgr == nil {
+		return map[string]string{}
+	}
+	return a.supertonicMgr.GetVoices()
+}
+
+// SpeakSupertonic synthesizes speech using local Supertonic TTS
+func (a *App) SpeakSupertonic(text string, voice string) (string, error) {
+	if a.supertonicMgr == nil {
+		return "", fmt.Errorf("Supertonic manager not initialized")
+	}
+	return a.supertonicMgr.GenerateSpeech(text, voice)
+}
+
+// UpdateTTSStatus updates speech generation / playback status and broadcasts to OBS and UI
+func (a *App) UpdateTTSStatus(state, author, text, voice, engine string, duration float64) {
+	st := widget.TTSStatusMessage{
+		State:     state,
+		Author:    author,
+		Text:      text,
+		Voice:     voice,
+		Engine:    engine,
+		Duration:  duration,
+		Timestamp: time.Now().Format("15:04"),
+	}
+	if a.widgetServer != nil {
+		a.widgetServer.BroadcastTTSStatus(st)
+	}
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "tts:status", st)
+	}
+}
+
+// GetTTSStatus returns current speech generation / playback status
+func (a *App) GetTTSStatus() widget.TTSStatusMessage {
+	if a.widgetServer == nil {
+		return widget.TTSStatusMessage{State: "idle"}
+	}
+	return a.widgetServer.GetTTSStatus()
+}
+
+// GetTTSWidgetURL returns URL for OBS TTS Status browser source
+func (a *App) GetTTSWidgetURL() string {
+	return fmt.Sprintf("http://localhost:%d/widget/tts", a.widgetServer.Port())
+}
+
+// GetTTSWidgetThemes returns themes for the TTS Status widget
+func (a *App) GetTTSWidgetThemes() []string {
+	if a.widgetServer == nil {
+		return []string{"default"}
+	}
+	return a.widgetServer.GetTTSThemes()
+}
+
+// OpenTTSThemesDir opens TTS widget themes directory in file explorer
+func (a *App) OpenTTSThemesDir() {
+	dir := filepath.Join(a.widgetServer.ThemesDirectory(), "tts")
+	_ = os.MkdirAll(dir, 0755)
+	switch runtime_os.GOOS {
+	case "windows":
+		_ = exec.Command("explorer", dir).Start()
+	case "darwin":
+		_ = exec.Command("open", dir).Start()
+	default:
+		_ = exec.Command("xdg-open", dir).Start()
+	}
+}
+
+// SendTestTTSStatus triggers a sample test cycle for the TTS Status widget
+func (a *App) SendTestTTSStatus() {
+	go func() {
+		a.UpdateTTSStatus("generating", "Alex_Streamer", "Привет! Это проверка работы локальной нейросети Supertonic AI.", "M1", "supertonic", 0)
+		time.Sleep(1500 * time.Millisecond)
+		a.UpdateTTSStatus("playing", "Alex_Streamer", "Привет! Это проверка работы локальной нейросети Supertonic AI.", "M1", "supertonic", 3.5)
+		time.Sleep(3500 * time.Millisecond)
+		a.UpdateTTSStatus("idle", "", "", "", "", 0)
+	}()
 }
 
 // GetWidgetURL returns the URL of the OBS chat widget (for copy-pasting into Browser Source)

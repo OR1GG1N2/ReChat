@@ -69,7 +69,21 @@ type WidgetServer struct {
 	currentGoalMu sync.RWMutex
 	currentGoal   map[string]interface{}
 
+	ttsStatusMu sync.RWMutex
+	ttsStatus   TTSStatusMessage
+
 	stopChan chan struct{}
+}
+
+// TTSStatusMessage represents real-time speech generation/playback status.
+type TTSStatusMessage struct {
+	State     string  `json:"state"` // "idle", "generating", "playing"
+	Author    string  `json:"author"`
+	Text      string  `json:"text"`
+	Voice     string  `json:"voice"`
+	Engine    string  `json:"engine"` // "supertonic", "yandex", "local"
+	Duration  float64 `json:"duration,omitempty"`
+	Timestamp string  `json:"timestamp"`
 }
 
 // NewWidgetServer creates a widget server. Port defaults to 3500.
@@ -129,6 +143,10 @@ func (ws *WidgetServer) Start() {
 		log.Printf("[Widget] Failed to create default goal theme: %v", err)
 	}
 
+	if err := EnsureDefaultTTSTheme(ws.themesDir); err != nil {
+		log.Printf("[Widget] Failed to create default TTS theme: %v", err)
+	}
+
 	mux := http.NewServeMux()
 
 	// Chat widget endpoints (support both /widget/chat and /widget)
@@ -181,6 +199,13 @@ func (ws *WidgetServer) Start() {
 	mux.HandleFunc("/widget/goal/data", ws.handleGoalData)
 	mux.HandleFunc("/widget/goal/test", ws.handleGoalTest)
 
+	// TTS Status widget endpoints
+	mux.HandleFunc("/widget/tts", ws.handleTTS)
+	mux.HandleFunc("/widget/tts/", ws.handleTTS)
+	mux.HandleFunc("/widget/tts/assets/", ws.handleTTSAssets)
+	mux.HandleFunc("/widget/tts/themes", ws.handleTTSThemesList)
+	mux.HandleFunc("/widget/tts/test", ws.handleTTSTest)
+
 	ws.server = &http.Server{
 		Addr:    fmt.Sprintf(":%d", ws.port),
 		Handler: addCORSHeaders(mux),
@@ -194,12 +219,16 @@ func (ws *WidgetServer) Start() {
 	}()
 
 	// Start file watcher for hot-reload
-	go watchThemes(ws.themesDir, ws.broadcastReload)
+	go watchThemes(ws.themesDir, ws.stopChan, ws.broadcastReload)
 }
 
 // Stop shuts down the HTTP server.
 func (ws *WidgetServer) Stop() {
-	close(ws.stopChan)
+	select {
+	case <-ws.stopChan:
+	default:
+		close(ws.stopChan)
+	}
 	if ws.server != nil {
 		_ = ws.server.Close()
 	}
@@ -911,6 +940,141 @@ func (ws *WidgetServer) BroadcastGoal(title string, current, target float64, cur
 		Timestamp: time.Now().Format("15:04"),
 	}
 	ws.Broadcast(msg)
+}
+
+// BroadcastTTSStatus emits a real-time status update to all connected OBS widget clients.
+func (ws *WidgetServer) BroadcastTTSStatus(st TTSStatusMessage) {
+	if st.Timestamp == "" {
+		st.Timestamp = time.Now().Format("15:04")
+	}
+	ws.ttsStatusMu.Lock()
+	ws.ttsStatus = st
+	ws.ttsStatusMu.Unlock()
+
+	_ = ws.Emit(TargetChat, "tts_status", st)
+	_ = ws.Emit(TargetAll, "tts_status", st)
+}
+
+// GetTTSStatus returns the latest TTS generation/playback status.
+func (ws *WidgetServer) GetTTSStatus() TTSStatusMessage {
+	ws.ttsStatusMu.RLock()
+	defer ws.ttsStatusMu.RUnlock()
+	return ws.ttsStatus
+}
+
+// GetTTSThemes returns available themes for the TTS Status widget.
+func (ws *WidgetServer) GetTTSThemes() []string {
+	themes := []string{}
+	ttsDir := filepath.Join(ws.themesDir, "tts")
+	if entries, err := os.ReadDir(ttsDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				themes = append(themes, e.Name())
+			}
+		}
+	}
+	if len(themes) == 0 {
+		themes = append(themes, "default")
+	}
+	return themes
+}
+
+func (ws *WidgetServer) handleTTS(w http.ResponseWriter, r *http.Request) {
+	theme := r.URL.Query().Get("theme")
+	if theme == "" {
+		theme = "default"
+	}
+	theme = filepath.Base(theme)
+
+	indexPath := filepath.Join(ws.themesDir, "tts", theme, "index.html")
+	if _, err := os.Stat(indexPath); err == nil {
+		http.ServeFile(w, r, indexPath)
+		return
+	}
+	defaultPath := filepath.Join(ws.themesDir, "tts", "default", "index.html")
+	if _, err := os.Stat(defaultPath); err == nil {
+		http.ServeFile(w, r, defaultPath)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(defaultTTSHTML))
+}
+
+func (ws *WidgetServer) handleTTSAssets(w http.ResponseWriter, r *http.Request) {
+	relPath := strings.TrimPrefix(r.URL.Path, "/widget/tts/assets/")
+	parts := strings.Split(relPath, "/")
+	var filePath string
+	if len(parts) == 1 {
+		filePath = filepath.Join(ws.themesDir, "tts", "default", filepath.Base(parts[0]))
+	} else {
+		theme := filepath.Base(parts[0])
+		file := filepath.Base(parts[1])
+		filePath = filepath.Join(ws.themesDir, "tts", theme, file)
+	}
+
+	if _, err := os.Stat(filePath); err == nil {
+		http.ServeFile(w, r, filePath)
+		return
+	}
+
+	defaultPath := filepath.Join(ws.themesDir, "tts", "default", filepath.Base(relPath))
+	if _, err := os.Stat(defaultPath); err == nil {
+		http.ServeFile(w, r, defaultPath)
+		return
+	}
+
+	if strings.HasSuffix(relPath, "style.css") {
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		_, _ = w.Write([]byte(defaultTTSCSS))
+		return
+	}
+
+	http.NotFound(w, r)
+}
+
+func (ws *WidgetServer) handleTTSThemesList(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	themes := ws.GetTTSThemes()
+	_ = json.NewEncoder(w).Encode(themes)
+}
+
+func (ws *WidgetServer) handleTTSTest(w http.ResponseWriter, r *http.Request) {
+	go func() {
+		// 1. Generating phase
+		ws.BroadcastTTSStatus(TTSStatusMessage{
+			State:     "generating",
+			Author:    "Alex_Streamer",
+			Text:      "Привет! Это проверка работы локальной нейросети Supertonic AI.",
+			Voice:     "M1",
+			Engine:    "supertonic",
+			Timestamp: time.Now().Format("15:04"),
+		})
+
+		time.Sleep(1500 * time.Millisecond)
+
+		// 2. Playing phase
+		ws.BroadcastTTSStatus(TTSStatusMessage{
+			State:     "playing",
+			Author:    "Alex_Streamer",
+			Text:      "Привет! Это проверка работы локальной нейросети Supertonic AI.",
+			Voice:     "M1",
+			Engine:    "supertonic",
+			Duration:  3.5,
+			Timestamp: time.Now().Format("15:04"),
+		})
+
+		time.Sleep(3500 * time.Millisecond)
+
+		// 3. Idle phase
+		ws.BroadcastTTSStatus(TTSStatusMessage{
+			State:     "idle",
+			Timestamp: time.Now().Format("15:04"),
+		})
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "message": "TTS test triggered"})
 }
 
 // addCORSHeaders wraps a handler to allow any origin (OBS uses file:// or null origin).

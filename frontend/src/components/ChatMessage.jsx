@@ -3,7 +3,7 @@ import TwitchIcon from './TwitchIcon';
 import KickIcon from './KickIcon';
 import TwitchBadge from './TwitchBadge';
 import EmoteText from './EmoteText';
-import { Copy, Check, AtSign } from 'lucide-react';
+import { Copy, Check, AtSign, MessageSquare } from 'lucide-react';
 
 export default function ChatMessage({
   msg,
@@ -11,6 +11,7 @@ export default function ChatMessage({
   dynamicBadges = {},
   emoteMap = {},
   onCopyUser,
+  onMentionUser,
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -18,6 +19,18 @@ export default function ChatMessage({
     msg.isFirstMsg ||
     (msg.eventData && msg.eventData.firstMsg === '1') ||
     msg.eventType === 'intro';
+
+  const isMentioned = Boolean(
+    settings.username &&
+    msg.message &&
+    msg.message.toLowerCase().includes(`@${settings.username.toLowerCase()}`)
+  );
+
+  const isHighlighted = Boolean(
+    msg.isHighlighted ||
+    msg.eventType === 'highlighted' ||
+    (msg.eventData && msg.eventData['msg-id'] === 'highlighted-message')
+  );
 
   const copyText = (e) => {
     e.stopPropagation();
@@ -28,11 +41,15 @@ export default function ChatMessage({
     }
   };
 
-  const copyUsername = (e) => {
+  const handleMentionClick = (e) => {
     e.stopPropagation();
     const uname = msg.displayName || msg.user;
     if (uname) {
-      navigator.clipboard?.writeText(`@${uname}`);
+      if (onMentionUser) {
+        onMentionUser(uname);
+      } else {
+        navigator.clipboard?.writeText(`@${uname}`);
+      }
       if (onCopyUser) onCopyUser(uname);
     }
   };
@@ -55,13 +72,20 @@ export default function ChatMessage({
     ? `"${settings.fontFamily}", system-ui, sans-serif`
     : '"Lato", system-ui, sans-serif';
 
+  let highlightClasses = 'hover:bg-white/[0.03]';
+  if (isMentioned) {
+    highlightClasses = 'bg-amber-500/10 border-l-2 border-amber-400 pl-2 shadow-xs';
+  } else if (isHighlighted) {
+    highlightClasses = 'bg-purple-500/10 border-l-2 border-purple-400 pl-2 shadow-xs';
+  }
+
   const messageRow = (
     <div
       style={{
         fontSize: `${settings.fontSize || 14}px`,
         fontFamily,
       }}
-      className={`group relative leading-relaxed px-2 rounded transition-colors duration-100 hover:bg-white/[0.03] break-words ${spacingClass} ${alignClass}`}
+      className={`group relative leading-relaxed px-2 rounded transition-colors duration-100 break-words ${spacingClass} ${alignClass} ${highlightClasses}`}
     >
       {/* Platform Icon Badge */}
       {msg.platform === 'kick' ? (
@@ -92,8 +116,8 @@ export default function ChatMessage({
 
       {/* Username */}
       <span
-        onClick={copyUsername}
-        title="Нажмите для копирования @username"
+        onClick={handleMentionClick}
+        title="Нажмите, чтобы ответить @ником"
         className="font-bold cursor-pointer hover:underline underline-offset-2 transition-all mr-1.5 align-baseline select-text"
         style={{ color: msg.color || '#A855F7' }}
       >
@@ -113,9 +137,17 @@ export default function ChatMessage({
       <div className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 absolute right-1.5 top-1 flex items-center gap-1 bg-[#242631]/95 backdrop-blur border border-white/[0.08] px-1 py-0.5 rounded shadow-lg select-none z-10">
         <button
           type="button"
+          onClick={handleMentionClick}
+          title="Ответить в чат (@ник)"
+          className="p-1 hover:bg-white/[0.08] text-[#9E9EB2] hover:text-[#ECECF1] rounded transition-colors cursor-pointer"
+        >
+          <MessageSquare className="w-3 h-3 text-blue-400" />
+        </button>
+        <button
+          type="button"
           onClick={copyText}
           title="Копировать сообщение"
-          className="p-1 hover:bg-white/[0.08] text-[#9E9EB2] hover:text-[#ECECF1] rounded transition-colors"
+          className="p-1 hover:bg-white/[0.08] text-[#9E9EB2] hover:text-[#ECECF1] rounded transition-colors cursor-pointer"
         >
           {copied ? (
             <Check className="w-3 h-3 text-emerald-400" />
@@ -123,19 +155,11 @@ export default function ChatMessage({
             <Copy className="w-3 h-3" />
           )}
         </button>
-        <button
-          type="button"
-          onClick={copyUsername}
-          title="Копировать @ник"
-          className="p-1 hover:bg-white/[0.08] text-[#9E9EB2] hover:text-[#ECECF1] rounded transition-colors"
-        >
-          <AtSign className="w-3 h-3" />
-        </button>
       </div>
     </div>
   );
 
-  // If this is a First Message, wrap in the special violet card from Screenshot 1
+  // If this is a First Message, wrap in the special violet card
   if (isFirstMessage) {
     return (
       <div className="my-1 mx-1 rounded-lg bg-[#281934] border-l-2 border-r-2 border-[#D946EF] py-1.5 px-1 shadow-sm transition-all">

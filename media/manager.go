@@ -78,8 +78,20 @@ func (m *Manager) SetTrack(info TrackInfo) {
 	}
 }
 
+func killOrphanMediaWatcher() {
+	cmd := exec.Command("taskkill", "/F", "/IM", "mediawatcher.exe")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	}
+	_ = cmd.Run()
+}
+
 // Start extracts mediawatcher.exe if needed and runs it in the background.
 func (m *Manager) Start() {
+	// Clean up any stale mediawatcher instances silently
+	killOrphanMediaWatcher()
+
 	exePath := m.ensureWatcherBinary()
 	if exePath == "" {
 		log.Printf("[MediaManager] Could not locate or extract mediawatcher.exe")
@@ -172,6 +184,7 @@ func (m *Manager) Stop() {
 		_ = m.cmd.Process.Kill()
 	}
 	m.mu.Unlock()
+	killOrphanMediaWatcher()
 }
 
 func (m *Manager) ensureWatcherBinary() string {

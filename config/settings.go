@@ -46,6 +46,7 @@ type AppSettings struct {
 	TTSIncludeEmotes    bool              `json:"ttsIncludeEmotes"`    // speak emotes
 	TTSIncludeEmoji     bool              `json:"ttsIncludeEmoji"`     // speak unicode emoji
 	TTSIncludeMentions  bool              `json:"ttsIncludeMentions"`  // speak @mentions
+	TTSSkipMentions     bool              `json:"ttsSkipMentions"`     // skip messages containing @mentions or replies
 	TTSRemoveWords      string            `json:"ttsRemoveWords"`      // words/symbols to remove from speech
 	IgnoreCommands      bool              `json:"ignoreCommands"`      // ignore messages starting with command symbols
 	CommandPrefixes     string            `json:"commandPrefixes"`     // comma separated command symbols, e.g. "!,/,.,$,?"
@@ -130,6 +131,7 @@ func DefaultSettings() AppSettings {
 		TTSIncludeEmotes:    false,
 		TTSIncludeEmoji:     false,
 		TTSIncludeMentions:  true,
+		TTSSkipMentions:     false,
 		TTSRemoveWords:      "",
 		IgnoreCommands:      true,
 		CommandPrefixes:     "!, /, ., $, ?",
@@ -313,6 +315,8 @@ func LoadSettings() AppSettings {
 				s.TTSIncludeEmoji = (val == "true")
 			case "ttsIncludeMentions":
 				s.TTSIncludeMentions = (val == "true")
+			case "ttsSkipMentions":
+				s.TTSSkipMentions = (val == "true")
 			case "ttsRemoveWords":
 				s.TTSRemoveWords = val
 			case "ignoreCommands":
@@ -493,6 +497,7 @@ func SaveSettings(s AppSettings) error {
 		"ttsIncludeEmotes":    strconv.FormatBool(s.TTSIncludeEmotes),
 		"ttsIncludeEmoji":     strconv.FormatBool(s.TTSIncludeEmoji),
 		"ttsIncludeMentions":  strconv.FormatBool(s.TTSIncludeMentions),
+		"ttsSkipMentions":     strconv.FormatBool(s.TTSSkipMentions),
 		"ttsRemoveWords":      s.TTSRemoveWords,
 		"ignoreCommands":      strconv.FormatBool(s.IgnoreCommands),
 		"commandPrefixes":     s.CommandPrefixes,

@@ -35,6 +35,7 @@ export namespace config {
 	    ttsIncludeEmotes: boolean;
 	    ttsIncludeEmoji: boolean;
 	    ttsIncludeMentions: boolean;
+	    ttsSkipMentions: boolean;
 	    ttsRemoveWords: string;
 	    ignoreCommands: boolean;
 	    commandPrefixes: string;
@@ -117,6 +118,7 @@ export namespace config {
 	        this.ttsIncludeEmotes = source["ttsIncludeEmotes"];
 	        this.ttsIncludeEmoji = source["ttsIncludeEmoji"];
 	        this.ttsIncludeMentions = source["ttsIncludeMentions"];
+	        this.ttsSkipMentions = source["ttsSkipMentions"];
 	        this.ttsRemoveWords = source["ttsRemoveWords"];
 	        this.ignoreCommands = source["ignoreCommands"];
 	        this.commandPrefixes = source["commandPrefixes"];
@@ -158,6 +160,68 @@ export namespace config {
 	        this.daShowGoalBar = source["daShowGoalBar"];
 	        this.kickEnabled = source["kickEnabled"];
 	        this.kickChannels = source["kickChannels"];
+	    }
+	}
+
+}
+
+export namespace tts {
+	
+	export class SupertonicStatus {
+	    installed: boolean;
+	    downloading: boolean;
+	    progress: number;
+	    currentFile: string;
+	    downloadedBytes: number;
+	    totalBytes: number;
+	    speed: string;
+	    modelDir: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SupertonicStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.installed = source["installed"];
+	        this.downloading = source["downloading"];
+	        this.progress = source["progress"];
+	        this.currentFile = source["currentFile"];
+	        this.downloadedBytes = source["downloadedBytes"];
+	        this.totalBytes = source["totalBytes"];
+	        this.speed = source["speed"];
+	        this.modelDir = source["modelDir"];
+	        this.error = source["error"];
+	    }
+	}
+
+}
+
+export namespace widget {
+	
+	export class TTSStatusMessage {
+	    state: string;
+	    author: string;
+	    text: string;
+	    voice: string;
+	    engine: string;
+	    duration?: number;
+	    timestamp: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TTSStatusMessage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.state = source["state"];
+	        this.author = source["author"];
+	        this.text = source["text"];
+	        this.voice = source["voice"];
+	        this.engine = source["engine"];
+	        this.duration = source["duration"];
+	        this.timestamp = source["timestamp"];
 	    }
 	}
 

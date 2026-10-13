@@ -1,5 +1,6 @@
 import React from 'react';
 import { WindowMinimise, WindowToggleMaximise, Quit } from '../../wailsjs/runtime/runtime';
+import { QuitApp } from '../../wailsjs/go/main/App';
 import { Settings, Minus, Square, X, ArrowLeft, Gamepad2 } from 'lucide-react';
 
 export default function CustomTitleBar({
@@ -139,7 +140,11 @@ export default function CustomTitleBar({
           style={{ '--wails-draggable': 'no-drag' }}
           onClick={(e) => {
             e.stopPropagation();
-            Quit();
+            if (typeof QuitApp === 'function') {
+              QuitApp();
+            } else {
+              Quit();
+            }
           }}
           className="w-6 h-6 flex items-center justify-center rounded-md text-[#9E9EB2] hover:text-white hover:bg-rose-600/90 active:bg-rose-700 transition-colors cursor-pointer"
           title="Закрыть приложение"

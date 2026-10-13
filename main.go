@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"embed"
+	"os"
+	"time"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -32,8 +35,18 @@ func main() {
 			BackdropType:         windows.None,
 			DisableWindowIcon:    false,
 		},
-		OnStartup:  app.startup,
-		OnShutdown: app.shutdown,
+		OnStartup: app.startup,
+		OnBeforeClose: func(ctx context.Context) (prevent bool) {
+			go func() {
+				time.Sleep(600 * time.Millisecond)
+				os.Exit(0)
+			}()
+			app.shutdown(ctx)
+			return false
+		},
+		OnShutdown: func(ctx context.Context) {
+			app.shutdown(ctx)
+		},
 		Bind: []interface{}{
 			app,
 		},
@@ -42,4 +55,7 @@ func main() {
 	if err != nil {
 		println("Error:", err.Error())
 	}
+
+	app.shutdown(context.Background())
+	os.Exit(0)
 }
