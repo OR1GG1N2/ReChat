@@ -8,9 +8,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Cpu,
+  Cloud,
+  Monitor,
   Sparkles,
   XCircle,
-  HardDrive,
 } from 'lucide-react';
 import {
   GetSupertonicStatus,
@@ -21,32 +22,153 @@ import {
 } from '../../../wailsjs/go/main/App';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 
-function ToggleRow({ label, desc, checked, onChange, disabled = false }) {
+import PageHeader from './PageHeader';
+
+/* ───────── Базовые элементы ───────── */
+
+function Section({ title, children }) {
   return (
-    <div className={`flex items-center justify-between py-1.5 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
-      <div className="pr-4">
-        <span className="text-sm font-medium text-[#ECECF1] block leading-snug">{label}</span>
-        {desc && <span className="text-xs text-[#8E92A4] block mt-0.5">{desc}</span>}
+    <section>
+      <h3 className="px-1 mb-2 text-[10px] font-mono font-medium uppercase tracking-[0.08em] text-[#8A8FA3]">{title}</h3>
+      <div className="bg-[#15171E] rounded-[14px] border border-white/[0.06] px-4 divide-y divide-white/[0.06]">
+        {children}
       </div>
-      <button
-        type="button"
-        role="switch"
-        disabled={disabled}
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`w-11 h-6 rounded-full transition-colors relative p-0.5 cursor-pointer focus:outline-none shrink-0 ${
-          checked ? 'bg-[#3B82F6]' : 'bg-[#383A48]'
-        }`}
-      >
-        <div
-          className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
-            checked ? 'translate-x-5' : 'translate-x-0.5'
-          }`}
-        />
-      </button>
+    </section>
+  );
+}
+
+function Row({ label, desc, children, stacked = false }) {
+  return (
+    <div className={`py-3 ${stacked ? 'space-y-2.5' : 'flex items-center justify-between gap-4'}`}>
+      <div className="min-w-0">
+        <span className="block text-[13px] font-bold text-[#EDEEF2] leading-snug">{label}</span>
+        {desc && <span className="block text-xs text-[#A0A4B4] mt-0.5 leading-relaxed">{desc}</span>}
+      </div>
+      {children}
     </div>
   );
 }
+
+function Switch({ checked, onChange, disabled = false, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative w-9 h-5 rounded-full shrink-0 cursor-pointer transition-colors
+        focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7CF2C8]/60 disabled:opacity-50 disabled:pointer-events-none
+        ${checked ? 'bg-[#7CF2C8]' : 'bg-[#2F3342]'}`}
+    >
+      <span
+        className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+          checked ? 'left-[18px] bg-[#0E0F13]' : 'left-0.5 bg-[#8A8FA3]'
+        }`}
+      />
+    </button>
+  );
+}
+
+function ToggleRow({ label, desc, checked, onChange, disabled = false }) {
+  return (
+    <Row label={label} desc={desc}>
+      <Switch checked={!!checked} onChange={onChange} disabled={disabled} label={label} />
+    </Row>
+  );
+}
+
+function Select({ value, onChange, children, className = '' }) {
+  return (
+    <div className="relative shrink-0">
+      <select
+        value={value}
+        onChange={onChange}
+        className={`appearance-none h-9 pl-3 pr-8 rounded-lg bg-[#0E0F13] hover:bg-[#1A1C25] text-[13px] font-bold text-[#EDEEF2]
+          border border-white/[0.08] outline-none cursor-pointer focus-visible:border-[#7CF2C8]/60 truncate ${className}`}
+      >
+        {children}
+      </select>
+      <ChevronDown className="w-3.5 h-3.5 text-[#6B7080] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+    </div>
+  );
+}
+
+function Slider({ label, value, display, min, max, step, onChange, marks }) {
+  const lo = Number(min);
+  const hi = Number(max);
+  const pct = Math.min(100, Math.max(0, ((Number(value) - lo) / (hi - lo)) * 100));
+  return (
+    <div className="py-3 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] font-bold text-[#EDEEF2]">{label}</span>
+        <span className="text-xs font-mono font-medium text-[#7CF2C8]">{display}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        aria-label={label}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        style={{ background: `linear-gradient(to right, #7CF2C8 ${pct}%, #2F3342 ${pct}%)` }}
+        className="w-full h-1 rounded-full appearance-none cursor-pointer
+          focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#7CF2C8]/60
+          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
+          [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#7CF2C8] [&::-webkit-slider-thumb]:border-0"
+      />
+      {marks && (
+        <div className="relative h-3 text-[10px] font-mono text-[#8A8FA3]">
+          {marks.map(({ v, l }) => {
+            const p = ((v - lo) / (hi - lo)) * 100;
+            return (
+              <span
+                key={l}
+                className="absolute"
+                style={{ left: `${p}%`, transform: p <= 0 ? 'none' : p >= 100 ? 'translateX(-100%)' : 'translateX(-50%)' }}
+              >
+                {l}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Chip({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`px-3 h-8 rounded-lg text-xs font-bold cursor-pointer transition-colors
+        focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7CF2C8]/60
+        ${active ? 'bg-[#7CF2C8] text-[#0E0F13]' : 'bg-[#1E212B] text-[#EDEEF2] hover:bg-[#262A36]'}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+const ENGINES = [
+  { id: 'supertonic', title: 'Supertonic', sub: 'Локально, ONNX', icon: Cpu },
+  { id: 'yandex', title: 'Алиса', sub: 'Облако Яндекса', icon: Cloud },
+  { id: 'local', title: 'Система', sub: 'Голоса ОС', icon: Monitor },
+];
+
+const TARGET_CATEGORIES = [
+  { key: 'ttsRepliesOnly', label: 'Ответы' },
+  { key: 'ttsHighlightedOnly', label: 'Выделенные за баллы' },
+  { key: 'ttsSubscribersOnly', label: 'Подписчики' },
+  { key: 'ttsVipOnly', label: 'VIP' },
+  { key: 'ttsModOnly', label: 'Модераторы и стример' },
+];
+
+/* ───────── Страница ───────── */
 
 export default function TTSTab({
   isWide,
@@ -135,458 +257,367 @@ export default function TTSTab({
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  const engine = formData.ttsEngine || 'yandex';
+  const speed = Number(formData.ttsSpeed) || 1.0;
+  const volume = formData.ttsVolume !== undefined ? formData.ttsVolume : 1.0;
+
+  const currentEngineTitle =
+    engine === 'supertonic'
+      ? 'Supertonic M1'
+      : engine === 'yandex'
+      ? 'Алиса'
+      : 'Система';
+
   return (
-    <div className={`space-y-4 ${isWide ? 'grid grid-cols-1 gap-4' : 'max-w-lg mx-auto'}`}>
-      {/* 1. Playback & Voice Devices Card */}
-      <div>
-        <div className="text-xs font-semibold text-[#8E92A4] px-1 mb-1.5">
-          Воспроизведение и звук
-        </div>
-        <div className="bg-[#242631] rounded-2xl p-4 space-y-4 border border-white/[0.03] shadow-sm">
-          <ToggleRow
-            label="Включить озвучку сообщений (TTS)"
-            desc="Автоматическое чтение входящих сообщений чата"
-            checked={formData.ttsEnabled}
-            onChange={(val) => updateAndSave({ ttsEnabled: val })}
-          />
+    <div className="w-full font-['Manrope',sans-serif]">
+      {isWide && (
+        <PageHeader
+          title="Озвучка TTS"
+          description="Что и как читается вслух"
+          badge={{
+            text: formData.ttsEnabled
+              ? `Озвучка включена · ${currentEngineTitle}`
+              : 'Озвучка выключена',
+            status: formData.ttsEnabled ? 'ok' : 'off',
+          }}
+        />
+      )}
 
-          <div className="h-px bg-white/[0.06]" />
+      <div
+        className={
+          isWide
+            ? 'grid grid-cols-1 lg:grid-cols-2 gap-5 items-start'
+            : 'space-y-5 max-w-lg mx-auto'
+        }
+      >
+        <div className="space-y-5">
+      {/* 1. Озвучка и звук */}
+      <Section title="Озвучка и звук">
+        <ToggleRow
+          label="Озвучивать сообщения чата"
+          desc="Новые сообщения читаются вслух по очереди"
+          checked={formData.ttsEnabled}
+          onChange={(val) => updateAndSave({ ttsEnabled: val })}
+        />
 
-          {/* Engine Selector */}
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm font-medium text-[#ECECF1] block">
-                Движок озвучки
-              </span>
-              <span className="text-xs text-[#8E92A4]">
-                Локальная нейросеть ONNX, облачная Алиса или ОС
-              </span>
-            </div>
-            <div className="relative">
-              <select
-                value={formData.ttsEngine || 'yandex'}
-                onChange={(e) => updateAndSave({ ttsEngine: e.target.value })}
-                className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-sm text-[#ECECF1] font-medium py-1.5 pl-3 pr-8 rounded-lg border border-white/[0.04] outline-none cursor-pointer"
-              >
-                <option value="supertonic">⚡ Supertonic AI (Локально ONNX)</option>
-                <option value="yandex">🟣 Yandex Alice (Облако)</option>
-                <option value="local">🎙 Локальный синтезатор (ОС)</option>
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-[#8E92A4] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
+        {/* Движок */}
+        <Row label="Движок" desc="Где синтезируется голос" stacked>
+          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Движок озвучки">
+            {ENGINES.map(({ id, title, sub, icon: Icon }) => {
+              const active = engine === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => updateAndSave({ ttsEngine: id })}
+                  className={`flex flex-col items-start gap-1 p-3 rounded-xl text-left cursor-pointer transition-colors border
+                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7CF2C8]/60
+                    ${active
+                      ? 'bg-[#7CF2C8]/[0.12] border-[#7CF2C8]/40 text-[#7CF2C8]'
+                      : 'bg-[#0E0F13] border-white/[0.06] text-[#A0A4B4] hover:text-[#EDEEF2] hover:bg-[#1A1C25]'}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-[13px] font-bold leading-tight">{title}</span>
+                  <span className="text-[11px] font-medium opacity-80">{sub}</span>
+                </button>
+              );
+            })}
           </div>
+        </Row>
 
-          {/* Dedicated Supertonic Model Manager Card */}
-          {formData.ttsEngine === 'supertonic' && (
-            <div className="bg-[#181920] rounded-xl p-3.5 border border-blue-500/20 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
-                    <Cpu className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-semibold text-[#ECECF1] block">
-                      Модель Supertonic TTS (ONNX)
-                    </span>
-                    <span className="text-[11px] text-[#8E92A4]">
-                      Supertone / supertonic (~398 MB)
-                    </span>
-                  </div>
+        {/* Менеджер модели Supertonic */}
+        {engine === 'supertonic' && (
+          <div className="py-3">
+            <div className="bg-[#0E0F13] rounded-xl p-3.5 border border-white/[0.06] space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="block text-[13px] font-bold text-[#EDEEF2]">Модель Supertonic</span>
+                  <span className="block text-xs text-[#A0A4B4]">Supertone / supertonic · ~398 MB</span>
                 </div>
 
                 {supertonicStatus.installed ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#7CF2C8]/[0.12] text-[#7CF2C8] shrink-0">
                     <CheckCircle2 className="w-3 h-3" />
                     Установлена
                   </span>
                 ) : supertonicStatus.downloading ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    <Loader2 className="w-3 h-3 animate-spin" />
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-white/[0.08] text-[#EDEEF2] shrink-0">
+                    <Loader2 className="w-3 h-3 animate-spin text-[#7CF2C8]" />
                     Загрузка {supertonicStatus.progress.toFixed(0)}%
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#FFB84D]/[0.12] text-[#FFB84D] shrink-0">
                     <AlertCircle className="w-3 h-3" />
                     Не установлена
                   </span>
                 )}
               </div>
 
-              {/* Downloading Progress Bar */}
               {supertonicStatus.downloading && (
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex justify-between text-[11px] text-[#8E92A4]">
-                    <span className="truncate max-w-[180px]">
-                      {supertonicStatus.currentFile || 'Подготовка файлов...'}
-                    </span>
-                    <span className="font-mono text-[#ECECF1]">
-                      {supertonicStatus.speed && `${supertonicStatus.speed} • `}
+                <div className="space-y-2">
+                  <div className="flex justify-between gap-3 text-[11px] text-[#A0A4B4]">
+                    <span className="truncate">{supertonicStatus.currentFile || 'Подготовка файлов…'}</span>
+                    <span className="font-mono text-[#EDEEF2] shrink-0">
+                      {supertonicStatus.speed && `${supertonicStatus.speed} · `}
                       {formatBytes(supertonicStatus.downloadedBytes)} / {formatBytes(supertonicStatus.totalBytes)}
                     </span>
                   </div>
-                  <div className="w-full h-2 bg-[#2B2D3C] rounded-full overflow-hidden relative">
+                  <div className="w-full h-1.5 bg-[#15171E] rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300 rounded-full"
+                      className="h-full bg-[#7CF2C8] rounded-full transition-all duration-300"
                       style={{ width: `${Math.min(100, Math.max(2, supertonicStatus.progress))}%` }}
                     />
                   </div>
-                  <div className="flex justify-end pt-1">
+                  <div className="flex justify-end">
                     <button
                       type="button"
                       onClick={handleCancelDownload}
-                      className="px-2.5 py-1 text-xs text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 rounded-md border border-rose-500/20 transition-colors flex items-center gap-1.5 cursor-pointer"
+                      className="h-8 px-3 text-xs font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <XCircle className="w-3.5 h-3.5" />
-                      <span>Отменить</span>
+                      Отменить
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Error Banner */}
               {supertonicStatus.error && (
-                <div className="text-xs text-rose-400 bg-rose-500/10 p-2 rounded-lg border border-rose-500/20">
+                <div role="alert" className="text-xs text-rose-400 bg-rose-500/10 p-2.5 rounded-lg">
                   {supertonicStatus.error}
                 </div>
               )}
 
-              {/* Not Installed Actions */}
               {!supertonicStatus.installed && !supertonicStatus.downloading && (
-                <div className="space-y-2 pt-1">
-                  <p className="text-xs text-[#8E92A4] leading-relaxed">
-                    Нейросетевой синтез голоса работает полностью на вашем ПК без интернета и задержек. Нажмите кнопку ниже, чтобы автоматически скачать необходимые веса с Hugging Face.
+                <div className="space-y-2.5">
+                  <p className="text-xs text-[#A0A4B4] leading-relaxed">
+                    Голос синтезируется на вашем компьютере: без интернета и задержек. Веса модели скачиваются с Hugging Face.
                   </p>
                   <button
                     type="button"
                     onClick={handleStartDownload}
                     disabled={modelActionLoading}
-                    className="w-full py-2 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    className="w-full h-9 px-3 bg-[#7CF2C8] hover:bg-[#95F5D3] text-[#0E0F13] text-[13px] font-bold rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-60"
                   >
-                    {modelActionLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Download className="w-4 h-4" />
-                    )}
-                    <span>Скачать модель Supertonic (~398 MB)</span>
+                    {modelActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    Скачать модель (~398 MB)
                   </button>
                 </div>
               )}
 
-              {/* Installed Actions */}
               {supertonicStatus.installed && (
-                <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
-                  <span className="text-[11px] text-emerald-400/90 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" />
-                    Готово к локальному озвучиванию
+                <div className="flex items-center justify-between pt-3 border-t border-white/[0.06]">
+                  <span className="text-xs text-[#7CF2C8] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Готова к локальной озвучке
                   </span>
                   <button
                     type="button"
                     onClick={handleDeleteModel}
                     disabled={modelActionLoading}
-                    className="text-xs text-[#8E92A4] hover:text-rose-400 transition-colors flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-[#A0A4B4] hover:text-rose-400 transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Удалить модель</span>
+                    Удалить модель
                   </button>
                 </div>
               )}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Voice selector */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-[#ECECF1]">
-              {formData.ttsEngine === 'supertonic'
-                ? 'Голосовой пресет Supertonic'
-                : formData.ttsEngine === 'local'
-                ? 'Системный голос'
-                : 'Голос (Алиса / Яндекс)'}
-            </span>
-            <div className="relative">
-              {formData.ttsEngine === 'supertonic' ? (
-                <select
-                  value={formData.ttsVoice || 'M1'}
-                  onChange={(e) => updateAndSave({ ttsVoice: e.target.value })}
-                  className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-sm text-[#ECECF1] font-medium py-1.5 pl-3 pr-8 rounded-lg border border-white/[0.04] outline-none cursor-pointer max-w-[220px] truncate"
-                >
-                  {Object.entries(supertonicVoices).map(([id, label]) => (
-                    <option key={id} value={id}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              ) : formData.ttsEngine === 'local' ? (
-                <select
-                  value={formData.ttsVoiceLocal || ''}
-                  onChange={(e) => updateAndSave({ ttsVoiceLocal: e.target.value })}
-                  className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-sm text-[#ECECF1] font-medium py-1.5 pl-3 pr-8 rounded-lg border border-white/[0.04] outline-none cursor-pointer max-w-[200px] truncate"
-                >
-                  {localVoices.length === 0 ? (
-                    <option value="">Голоса не найдены</option>
-                  ) : (
-                    localVoices.map((v) => (
-                      <option key={v.name} value={v.name}>
-                        {v.name} ({v.lang})
-                      </option>
-                    ))
-                  )}
-                </select>
+        {/* Голос */}
+        <Row label={engine === 'supertonic' ? 'Голосовой пресет' : engine === 'local' ? 'Системный голос' : 'Голос'}>
+          {engine === 'supertonic' ? (
+            <Select
+              value={formData.ttsVoice || 'M1'}
+              onChange={(e) => updateAndSave({ ttsVoice: e.target.value })}
+              className="max-w-[280px]"
+            >
+              {Object.entries(supertonicVoices).map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          ) : engine === 'local' ? (
+            <Select
+              value={formData.ttsVoiceLocal || ''}
+              onChange={(e) => updateAndSave({ ttsVoiceLocal: e.target.value })}
+              className="max-w-[280px]"
+            >
+              {localVoices.length === 0 ? (
+                <option value="">Голоса не найдены</option>
               ) : (
-                <select
-                  value={formData.ttsVoice || 'shitova.us'}
-                  onChange={(e) => updateAndSave({ ttsVoice: e.target.value })}
-                  className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-sm text-[#ECECF1] font-medium py-1.5 pl-3 pr-8 rounded-lg border border-white/[0.04] outline-none cursor-pointer"
-                >
-                  <option value="shitova.us">Татьяна Шитова (Алиса)</option>
-                  <option value="alyss">Alyss</option>
-                  <option value="ermil">Ermil (мужской)</option>
-                  <option value="jane">Jane (женский)</option>
-                  <option value="oksana">Oksana (женский)</option>
-                  <option value="omazh">Omazh (женский)</option>
-                  <option value="zahar">Zahar (мужской)</option>
-                </select>
-              )}
-              <ChevronDown className="w-3.5 h-3.5 text-[#8E92A4] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Speed slider */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[#8E92A4]">Скорость воспроизведения</span>
-              <span className="text-[#ECECF1] font-mono font-medium">
-                {(Number(formData.ttsSpeed) || 1.0).toFixed(1)}x
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0.5"
-              max="2.0"
-              step="0.1"
-              value={formData.ttsSpeed !== undefined ? formData.ttsSpeed : 1.0}
-              onChange={(e) =>
-                updateAndSave({ ttsSpeed: parseFloat(e.target.value) })
-              }
-              className="w-full h-1.5 bg-[#383A48] rounded-lg appearance-none cursor-pointer accent-[#3B82F6]"
-            />
-            <div className="flex justify-between text-[10px] text-[#6C7082] font-mono">
-              <span>0.5x (Медленно)</span>
-              <span>1.0x (Стандарт)</span>
-              <span>2.0x (Быстро)</span>
-            </div>
-          </div>
-
-          {/* Volume slider */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[#8E92A4]">Громкость</span>
-              <span className="text-[#ECECF1] font-mono font-medium">
-                {Math.round((formData.ttsVolume !== undefined ? formData.ttsVolume : 1.0) * 100)}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={formData.ttsVolume !== undefined ? formData.ttsVolume : 1.0}
-              onChange={(e) =>
-                updateAndSave({ ttsVolume: parseFloat(e.target.value) })
-              }
-              className="w-full h-1.5 bg-[#383A48] rounded-lg appearance-none cursor-pointer accent-[#3B82F6]"
-            />
-          </div>
-
-          {/* Audio Output Device */}
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm font-medium text-[#ECECF1] block">
-                Устройство вывода звука
-              </span>
-              <span className="text-xs text-[#8E92A4]">
-                Наушники, динамики или виртуальный кабель
-              </span>
-            </div>
-            <div className="relative">
-              <select
-                value={formData.ttsAudioDevice || ''}
-                onChange={(e) => updateAndSave({ ttsAudioDevice: e.target.value })}
-                className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-sm text-[#ECECF1] font-medium py-1.5 pl-3 pr-8 rounded-lg border border-white/[0.04] outline-none cursor-pointer max-w-[220px] truncate"
-              >
-                <option value="">По умолчанию (Системное)</option>
-                {audioDevices.map((dev) => (
-                  <option key={dev.deviceId} value={dev.deviceId}>
-                    {dev.label || `Аудиоустройство (${dev.deviceId.slice(0, 6)}...)`}
+                localVoices.map((v) => (
+                  <option key={v.name} value={v.name}>
+                    {v.name} ({v.lang})
                   </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-[#8E92A4] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
+                ))
+              )}
+            </Select>
+          ) : (
+            <Select value={formData.ttsVoice || 'shitova.us'} onChange={(e) => updateAndSave({ ttsVoice: e.target.value })}>
+              <option value="shitova.us">Татьяна Шитова (Алиса)</option>
+              <option value="alyss">Alyss</option>
+              <option value="ermil">Ermil (мужской)</option>
+              <option value="jane">Jane (женский)</option>
+              <option value="oksana">Oksana (женский)</option>
+              <option value="omazh">Omazh (женский)</option>
+              <option value="zahar">Zahar (мужской)</option>
+            </Select>
+          )}
+        </Row>
 
-          {/* Skip Hotkey */}
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm font-medium text-[#ECECF1] block">
-                Клавиша пропуска текущей озвучки
-              </span>
-              <span className="text-xs text-[#8E92A4]">
-                Мгновенно прерывает читаемое сейчас сообщение
-              </span>
-            </div>
-            <div className="relative">
-              <select
-                value={formData.ttsSkipHotkey || 'Escape'}
-                onChange={(e) => updateAndSave({ ttsSkipHotkey: e.target.value })}
-                className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-sm text-[#ECECF1] font-medium py-1.5 pl-3 pr-8 rounded-lg border border-white/[0.04] outline-none cursor-pointer"
-              >
-                <option value="Escape">Клавиша Esc (Escape)</option>
-                <option value="F8">Клавиша F8</option>
-                <option value="Ctrl+Shift+S">Ctrl + Shift + S</option>
-                <option value="Space">Пробел (Space)</option>
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-[#8E92A4] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
+        <Slider
+          label="Скорость"
+          value={formData.ttsSpeed !== undefined ? formData.ttsSpeed : 1.0}
+          display={`${speed.toFixed(1)}x`}
+          min="0.5"
+          max="2.0"
+          step="0.1"
+          onChange={(v) => updateAndSave({ ttsSpeed: v })}
+          marks={[{ v: 0.5, l: '0.5x' }, { v: 1, l: '1.0x' }, { v: 2, l: '2.0x' }]}
+        />
 
-          {/* Test button */}
+        <Slider
+          label="Громкость"
+          value={volume}
+          display={`${Math.round(volume * 100)}%`}
+          min="0"
+          max="1"
+          step="0.05"
+          onChange={(v) => updateAndSave({ ttsVolume: v })}
+        />
+
+        <Row label="Устройство вывода" desc="Наушники, динамики или виртуальный кабель">
+          <Select
+            value={formData.ttsAudioDevice || ''}
+            onChange={(e) => updateAndSave({ ttsAudioDevice: e.target.value })}
+            className="max-w-[280px]"
+          >
+            <option value="">По умолчанию (системное)</option>
+            {audioDevices.map((dev) => (
+              <option key={dev.deviceId} value={dev.deviceId}>
+                {dev.label || `Аудиоустройство (${dev.deviceId.slice(0, 6)}…)`}
+              </option>
+            ))}
+          </Select>
+        </Row>
+
+        <Row label="Пропуск текущей озвучки" desc="Сразу прерывает читаемое сообщение">
+          <Select value={formData.ttsSkipHotkey || 'Escape'} onChange={(e) => updateAndSave({ ttsSkipHotkey: e.target.value })}>
+            <option value="Escape">Esc</option>
+            <option value="F8">F8</option>
+            <option value="Ctrl+Shift+S">Ctrl + Shift + S</option>
+            <option value="Space">Пробел</option>
+          </Select>
+        </Row>
+
+        <div className="py-3">
           <button
             type="button"
             onClick={handleTestTTS}
             disabled={isTTSTesting}
-            className="px-4 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-[#ECECF1] text-xs font-semibold rounded-lg flex items-center gap-2 transition-colors cursor-pointer border border-white/[0.06]"
+            className="h-9 px-4 bg-[#1E212B] hover:bg-[#262A36] text-[#EDEEF2] text-[13px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-70
+              focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7CF2C8]/60"
           >
             {isTTSTesting ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#3B82F6]" />
+              <Loader2 className="w-4 h-4 animate-spin text-[#7CF2C8]" />
             ) : (
-              <Play className="w-3.5 h-3.5 text-[#3B82F6]" />
+              <Play className="w-4 h-4 text-[#7CF2C8]" />
             )}
-            <span>{isTTSTesting ? 'Воспроизведение...' : 'Проверить звук TTS'}</span>
+            {isTTSTesting ? 'Воспроизведение…' : 'Проверить звук'}
           </button>
         </div>
+      </Section>
+
       </div>
 
-      {/* 2. Message Targeting Card */}
-      <div>
-        <div className="text-xs font-semibold text-[#8E92A4] px-1 mb-1.5">
-          Кого озвучивать (Фильтрация сообщений)
-        </div>
-        <div className="bg-[#242631] rounded-2xl p-4 space-y-2 border border-white/[0.03] shadow-sm">
-          <ToggleRow
-            label="Озвучивать все сообщения"
-            desc="Читать все входящие сообщения без ограничений по роли"
-            checked={formData.ttsAllMessages}
-            onChange={(val) => updateAndSave({ ttsAllMessages: val })}
-          />
-          <ToggleRow
-            label="Не озвучивать упоминания и ответы"
-            desc="Пропускать сообщения, содержащие @упоминания или адресованные другим пользователям"
-            checked={formData.ttsSkipMentions}
-            onChange={(val) => updateAndSave({ ttsSkipMentions: val })}
-          />
-
-          {!formData.ttsAllMessages && (
-            <div className="pt-2 pl-2 border-t border-white/[0.04] space-y-1">
-              <div className="text-[11px] text-[#3B82F6] font-medium pb-1">
-                Озвучивать только выбранные категории:
-              </div>
-              <ToggleRow
-                label="Озвучивать сообщения с ответом"
-                desc="Сообщения, отправленные в ответ другим пользователям"
-                checked={formData.ttsRepliesOnly}
-                onChange={(val) => updateAndSave({ ttsRepliesOnly: val })}
-              />
-              <ToggleRow
-                label="Озвучивать выделенные сообщения"
-                desc="Сообщения, выделенные за баллы канала (Channel Points)"
-                checked={formData.ttsHighlightedOnly}
-                onChange={(val) => updateAndSave({ ttsHighlightedOnly: val })}
-              />
-              <ToggleRow
-                label="Озвучивать сообщения подписчиков"
-                desc="Сообщения от платных подписчиков (Subscribers)"
-                checked={formData.ttsSubscribersOnly}
-                onChange={(val) => updateAndSave({ ttsSubscribersOnly: val })}
-              />
-              <ToggleRow
-                label="Озвучивать сообщения ВИП"
-                desc="Сообщения от пользователей со значком VIP"
-                checked={formData.ttsVipOnly}
-                onChange={(val) => updateAndSave({ ttsVipOnly: val })}
-              />
-              <ToggleRow
-                label="Озвучивать сообщения модеров"
-                desc="Сообщения от модераторов и стримера"
-                checked={formData.ttsModOnly}
-                onChange={(val) => updateAndSave({ ttsModOnly: val })}
-              />
+      <div className="space-y-5">
+      {/* 2. Кого озвучивать */}
+      <Section title="Кого озвучивать">
+        <ToggleRow
+          label="Все сообщения"
+          desc="Читать без ограничений по роли"
+          checked={formData.ttsAllMessages}
+          onChange={(val) => updateAndSave({ ttsAllMessages: val })}
+        />
+        <ToggleRow
+          label="Пропускать упоминания и ответы другим"
+          desc="Сообщения с @упоминаниями и адресованные другим зрителям"
+          checked={formData.ttsSkipMentions}
+          onChange={(val) => updateAndSave({ ttsSkipMentions: val })}
+        />
+        {!formData.ttsAllMessages && (
+          <Row label="Только выбранные категории" desc="Читаются сообщения, подходящие хотя бы под одну" stacked>
+            <div className="flex flex-wrap gap-2">
+              {TARGET_CATEGORIES.map(({ key, label }) => (
+                <Chip key={key} active={!!formData[key]} onClick={() => updateAndSave({ [key]: !formData[key] })}>
+                  {label}
+                </Chip>
+              ))}
             </div>
-          )}
-        </div>
-      </div>
+          </Row>
+        )}
+      </Section>
 
-      {/* 3. Message Content Card */}
-      <div>
-        <div className="text-xs font-semibold text-[#8E92A4] px-1 mb-1.5">
-          Содержимое сообщения (Что читать)
-        </div>
-        <div className="bg-[#242631] rounded-2xl p-4 space-y-2 border border-white/[0.03] shadow-sm">
-          <ToggleRow
-            label="Озвучивать имя автора"
-            desc="Добавлять имя пользователя перед сообщением (например, «shroud говорит: ...»)"
-            checked={formData.ttsIncludeUsername}
-            onChange={(val) => updateAndSave({ ttsIncludeUsername: val })}
-          />
-          <ToggleRow
-            label="Озвучивать ссылки"
-            desc="Если выключено, ссылки https://... автоматически удаляются из речи"
-            checked={formData.ttsIncludeLinks}
-            onChange={(val) => updateAndSave({ ttsIncludeLinks: val })}
-          />
-          <ToggleRow
-            label="Озвучивать смайлики"
-            desc="Если выключено, названия смайликов Twitch / 7TV / BTTV вырезаются из речи"
-            checked={formData.ttsIncludeEmotes}
-            onChange={(val) => updateAndSave({ ttsIncludeEmotes: val })}
-          />
-          <ToggleRow
-            label="Озвучивать эмодзи"
-            desc="Если выключено, стандартные Unicode-эмодзи удаляются из речи"
-            checked={formData.ttsIncludeEmoji}
-            onChange={(val) => updateAndSave({ ttsIncludeEmoji: val })}
-          />
-          <ToggleRow
-            label="Озвучивать теги @упоминаний"
-            desc="Если выключено, теги @username вырезаются из читаемого текста"
-            checked={formData.ttsIncludeMentions}
-            onChange={(val) => updateAndSave({ ttsIncludeMentions: val })}
-          />
-        </div>
-      </div>
+      {/* 3. Что читать */}
+      <Section title="Что читать">
+        <ToggleRow
+          label="Имя автора"
+          desc="Перед сообщением: «shroud говорит: …»"
+          checked={formData.ttsIncludeUsername}
+          onChange={(val) => updateAndSave({ ttsIncludeUsername: val })}
+        />
+        <ToggleRow
+          label="Ссылки"
+          desc="Если выключено, https://… вырезаются из речи"
+          checked={formData.ttsIncludeLinks}
+          onChange={(val) => updateAndSave({ ttsIncludeLinks: val })}
+        />
+        <ToggleRow
+          label="Смайлы"
+          desc="Названия смайлов Twitch, 7TV и BTTV"
+          checked={formData.ttsIncludeEmotes}
+          onChange={(val) => updateAndSave({ ttsIncludeEmotes: val })}
+        />
+        <ToggleRow
+          label="Эмодзи"
+          desc="Стандартные Unicode-эмодзи"
+          checked={formData.ttsIncludeEmoji}
+          onChange={(val) => updateAndSave({ ttsIncludeEmoji: val })}
+        />
+        <ToggleRow
+          label="Теги @упоминаний"
+          desc="Если выключено, @username вырезаются из текста"
+          checked={formData.ttsIncludeMentions}
+          onChange={(val) => updateAndSave({ ttsIncludeMentions: val })}
+        />
+      </Section>
 
-      {/* 4. Text Processing Card */}
-      <div>
-        <div className="text-xs font-semibold text-[#8E92A4] px-1 mb-1.5">
-          Обработка текста
+      {/* 4. Обработка текста */}
+      <Section title="Обработка текста">
+        <div className="py-3 space-y-2.5">
+          <label htmlFor="tts-remove-words" className="block">
+            <span className="block text-[13px] font-bold text-[#EDEEF2]">Удалять слова и символы</span>
+            <span className="block text-xs text-[#A0A4B4] mt-0.5 leading-relaxed">
+              Через запятую или с новой строки. Удаляются из текста перед озвучкой.
+            </span>
+          </label>
+          <textarea
+            id="tts-remove-words"
+            rows={3}
+            value={formData.ttsRemoveWords || ''}
+            onChange={(e) => updateAndSave({ ttsRemoveWords: e.target.value })}
+            placeholder="например: !, ?, http, Kappa, LUL"
+            className="w-full bg-[#0E0F13] border border-white/[0.08] rounded-xl p-3 text-xs text-[#EDEEF2] placeholder:text-[#6B7080] outline-none focus-visible:border-[#7CF2C8]/60 resize-none font-mono"
+          />
         </div>
-        <div className="bg-[#242631] rounded-2xl p-4 space-y-3 border border-white/[0.03] shadow-sm">
-          <div>
-            <label className="text-sm font-medium text-[#ECECF1] block mb-1">
-              Удалять из текста слова или символы
-            </label>
-            <p className="text-xs text-[#8E92A4] mb-2 leading-relaxed">
-              Укажите слова, фразы или символы через запятую или с новой строки. Они будут автоматически удаляться перед озвучкой.
-            </p>
-            <textarea
-              rows={3}
-              value={formData.ttsRemoveWords || ''}
-              onChange={(e) => updateAndSave({ ttsRemoveWords: e.target.value })}
-              placeholder="например: !, ?, http, стример, Kappa, LUL"
-              className="w-full bg-[#181920] border border-white/[0.06] rounded-xl p-3 text-xs text-[#ECECF1] placeholder:text-[#6C7082] outline-none focus:border-[#3B82F6] resize-none font-mono"
-            />
-          </div>
-        </div>
+      </Section>
       </div>
+    </div>
     </div>
   );
 }

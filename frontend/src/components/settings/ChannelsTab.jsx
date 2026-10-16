@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Trash2, Check, Radio } from 'lucide-react';
 import TwitchIcon from '../TwitchIcon';
 import KickIcon from '../KickIcon';
+import PageHeader from './PageHeader';
 
 export default function ChannelsTab({
   isWide,
@@ -17,9 +18,21 @@ export default function ChannelsTab({
   handleRemoveKickChannel,
 }) {
   const [platformTab, setPlatformTab] = useState('twitch');
+  const totalChannels = (joinedChannels?.length || 0) + (joinedKickChannels?.length || 0);
 
   return (
-    <div className={`space-y-5 animate-fade-in ${isWide ? 'grid grid-cols-1 gap-4' : 'max-w-lg mx-auto'}`}>
+    <div className="w-full font-['Manrope',sans-serif]">
+      {isWide && (
+        <PageHeader
+          title="Каналы"
+          description="Мультичат Twitch и Kick, список подключенных каналов"
+          badge={{
+            text: `${totalChannels} каналов подключено`,
+            status: totalChannels > 0 ? 'ok' : 'warn',
+          }}
+        />
+      )}
+      <div className={`space-y-5 animate-fade-in ${isWide ? 'grid grid-cols-1 gap-4' : 'max-w-lg mx-auto'}`}>
       {/* Platform Switcher Tabs */}
       <div className="flex p-1 bg-[#181920] rounded-2xl border border-white/[0.04]">
         <button
@@ -196,6 +209,7 @@ export default function ChannelsTab({
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

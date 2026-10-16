@@ -138,6 +138,78 @@ export function LogoutTwitch() {
   return window['go']['main']['App']['LogoutTwitch']();
 }
 
+export function MusicAddTrack(arg1, arg2, arg3) {
+  return window['go']['main']['App']['MusicAddTrack'](arg1, arg2, arg3);
+}
+
+export function MusicApprove(arg1) {
+  return window['go']['main']['App']['MusicApprove'](arg1);
+}
+
+export function MusicClearHistory() {
+  return window['go']['main']['App']['MusicClearHistory']();
+}
+
+export function MusicClearQueue() {
+  return window['go']['main']['App']['MusicClearQueue']();
+}
+
+export function MusicGetRules() {
+  return window['go']['main']['App']['MusicGetRules']();
+}
+
+export function MusicGetState() {
+  return window['go']['main']['App']['MusicGetState']();
+}
+
+export function MusicMoveUp(arg1) {
+  return window['go']['main']['App']['MusicMoveUp'](arg1);
+}
+
+export function MusicNext() {
+  return window['go']['main']['App']['MusicNext']();
+}
+
+export function MusicPauseSystemMedia() {
+  return window['go']['main']['App']['MusicPauseSystemMedia']();
+}
+
+export function MusicPlayFromHistory(arg1) {
+  return window['go']['main']['App']['MusicPlayFromHistory'](arg1);
+}
+
+export function MusicPrev() {
+  return window['go']['main']['App']['MusicPrev']();
+}
+
+export function MusicReject(arg1, arg2) {
+  return window['go']['main']['App']['MusicReject'](arg1, arg2);
+}
+
+export function MusicRemoveTrack(arg1) {
+  return window['go']['main']['App']['MusicRemoveTrack'](arg1);
+}
+
+export function MusicReorder(arg1, arg2) {
+  return window['go']['main']['App']['MusicReorder'](arg1, arg2);
+}
+
+export function MusicRequeueFromHistory(arg1) {
+  return window['go']['main']['App']['MusicRequeueFromHistory'](arg1);
+}
+
+export function MusicSkip() {
+  return window['go']['main']['App']['MusicSkip']();
+}
+
+export function MusicUpdatePlayback(arg1, arg2, arg3) {
+  return window['go']['main']['App']['MusicUpdatePlayback'](arg1, arg2, arg3);
+}
+
+export function MusicUpdateRules(arg1) {
+  return window['go']['main']['App']['MusicUpdateRules'](arg1);
+}
+
 export function OpenAndImportWireGuardConf() {
   return window['go']['main']['App']['OpenAndImportWireGuardConf']();
 }

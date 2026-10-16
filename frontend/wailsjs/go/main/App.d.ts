@@ -3,6 +3,7 @@
 import {config} from '../models';
 import {tts} from '../models';
 import {widget} from '../models';
+import {music} from '../models';
 
 export function CancelSupertonicDownload():Promise<void>;
 
@@ -71,6 +72,42 @@ export function LeaveChannel(arg1:string):Promise<void>;
 export function LeaveKickChannel(arg1:string):Promise<void>;
 
 export function LogoutTwitch():Promise<void>;
+
+export function MusicAddTrack(arg1:string,arg2:string,arg3:string):Promise<music.Track>;
+
+export function MusicApprove(arg1:string):Promise<void>;
+
+export function MusicClearHistory():Promise<void>;
+
+export function MusicClearQueue():Promise<void>;
+
+export function MusicGetRules():Promise<music.MusicRules>;
+
+export function MusicGetState():Promise<music.MusicState>;
+
+export function MusicMoveUp(arg1:string):Promise<void>;
+
+export function MusicNext():Promise<music.Track>;
+
+export function MusicPauseSystemMedia():Promise<void>;
+
+export function MusicPlayFromHistory(arg1:string):Promise<music.Track>;
+
+export function MusicPrev():Promise<music.Track>;
+
+export function MusicReject(arg1:string,arg2:string):Promise<void>;
+
+export function MusicRemoveTrack(arg1:string):Promise<void>;
+
+export function MusicReorder(arg1:number,arg2:number):Promise<void>;
+
+export function MusicRequeueFromHistory(arg1:string):Promise<music.Track>;
+
+export function MusicSkip():Promise<void>;
+
+export function MusicUpdatePlayback(arg1:number,arg2:boolean,arg3:number):Promise<void>;
+
+export function MusicUpdateRules(arg1:music.MusicRules):Promise<void>;
 
 export function OpenAndImportWireGuardConf():Promise<Record<string, any>>;
 

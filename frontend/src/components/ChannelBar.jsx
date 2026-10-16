@@ -47,7 +47,7 @@ export default function ChannelBar({
   const hasAnyChannels = (joinedChannels?.length || 0) + (joinedKickChannels?.length || 0) > 0;
 
   return (
-    <header className="h-8 px-2.5 border-b border-white/[0.04] bg-[#14151C]/95 backdrop-blur-md flex items-center justify-between gap-2 shrink-0 select-none z-10 font-sans">
+    <header className="h-8 px-2.5 border-b border-white/[0.06] bg-[#0E0F13]/95 backdrop-blur-md flex items-center justify-between gap-2 shrink-0 select-none z-10 font-sans">
       {/* Channels List */}
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
         <div className="flex items-center gap-1 text-[10px] font-mono text-[#6C7082] shrink-0 mr-0.5">

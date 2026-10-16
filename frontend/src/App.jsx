@@ -92,6 +92,14 @@ function isMessageEligibleForTTS(msg, s, mutedChannelsSet) {
     return false;
   }
 
+  // Never voice music commands or music queue notifications (track addition announcements)
+  const msgText = (msg.message || '').trim();
+  const isMusicOrderCmd = /^!(?:заказ|sr|songrequest|song|музыка|трек|music)(\s|$)/i.test(msgText);
+  const isMusicQueueReply = /(?:добавлен в очередь|отправлен на модерацию|заказ не принят|играет прямо сейчас)/i.test(msgText);
+  if (isMusicOrderCmd || isMusicQueueReply) {
+    return false;
+  }
+
   // Mentions / Replies skipping if ttsSkipMentions is enabled
   const isReply = Boolean(
     (msg.eventData && msg.eventData['reply-parent-msg-id']) ||
@@ -986,14 +994,6 @@ export default function App() {
     setActiveView('chat');
   }, []);
 
-  if (activeView === 'settings') {
-    return (
-      <SettingsErrorBoundary onClose={closeSettings}>
-        <SettingsView onClose={closeSettings} />
-      </SettingsErrorBoundary>
-    );
-  }
-
   // Filter messages based on muted channels, disabled events, and ignored users/commands
   const visibleMessages = messages.filter((msg) => {
     if (msg.channel && mutedChannels.has(msg.channel.toLowerCase()))
@@ -1020,14 +1020,42 @@ export default function App() {
   });
 
   return (
-    <div
-      className={`flex flex-col h-screen w-full select-none overflow-hidden font-sans relative ${
-        isGameMode
-          ? 'bg-transparent border-none outline-none shadow-none text-[#ECECF1] pointer-events-none'
-          : 'bg-[#181920] text-[#ECECF1] transition-colors'
-      }`}
-      style={isGameMode ? { background: 'transparent', backgroundColor: 'transparent' } : {}}
-    >
+    <div className="w-full h-screen relative overflow-hidden">
+      {/* Settings View (kept permanently in DOM so background music, YouTube player, and state persist across view & mode switches) */}
+      <div
+        className="w-full h-full"
+        style={
+          activeView === 'settings'
+            ? { display: 'block', position: 'relative' }
+            : {
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '1px',
+                height: '1px',
+                overflow: 'hidden',
+                opacity: 0,
+                pointerEvents: 'none',
+                zIndex: -10,
+              }
+        }
+      >
+        <SettingsErrorBoundary onClose={closeSettings}>
+          <SettingsView onClose={closeSettings} />
+        </SettingsErrorBoundary>
+      </div>
+
+      {/* Main Chat View */}
+      <div
+        className={`flex-col h-screen w-full select-none overflow-hidden font-sans relative ${
+          activeView === 'chat' ? 'flex' : 'hidden'
+        } ${
+          isGameMode
+            ? 'bg-transparent border-none outline-none shadow-none text-[#EDEEF2] pointer-events-none'
+            : 'bg-[#0E0F13] text-[#EDEEF2] transition-colors'
+        }`}
+        style={isGameMode ? { background: 'transparent', backgroundColor: 'transparent' } : {}}
+      >
       {!isGameMode && (
         <CustomTitleBar
           isSettingsMode={false}
@@ -1083,7 +1111,7 @@ export default function App() {
         className={`relative flex-1 overflow-y-auto px-1.5 py-1.5 space-y-0.5 custom-scrollbar ${
           isGameMode
             ? 'bg-transparent border-none outline-none shadow-none no-scrollbar scrollbar-none [text-shadow:_0_1px_4px_rgba(0,0,0,0.9),_0_0_2px_rgba(0,0,0,0.9)]'
-            : 'bg-[#181920]'
+            : 'bg-[#0E0F13]'
         }`}
         style={isGameMode ? { background: 'transparent', backgroundColor: 'transparent' } : {}}
       >
@@ -1211,23 +1239,23 @@ export default function App() {
 
       {/* Docked Chat Input Bar (disabled/hidden in Game Mode) */}
       {!isGameMode && (
-        <footer className="shrink-0 p-2 bg-[#181920] border-t border-white/[0.04] relative">
+        <footer className="shrink-0 p-2 bg-[#0E0F13] border-t border-white/[0.06] relative">
           {/* Emote Picker Popover */}
           {showEmotePicker && (
-            <div className="absolute bottom-14 right-2 w-72 max-h-64 bg-[#242631]/95 border border-white/[0.08] rounded-2xl shadow-2xl p-2.5 z-30 flex flex-col gap-2 font-sans backdrop-blur-md animate-fade-in">
+            <div className="absolute bottom-14 right-2 w-72 max-h-64 bg-[#15171E]/95 border border-white/[0.08] rounded-2xl shadow-2xl p-2.5 z-30 flex flex-col gap-2 font-sans backdrop-blur-md animate-fade-in">
               <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-white/[0.06]">
                 <input
                   type="text"
                   placeholder="Поиск смайла..."
                   value={emoteSearch}
                   onChange={(e) => setEmoteSearch(e.target.value)}
-                  className="flex-1 bg-[#181920] border border-white/[0.06] rounded-lg px-2.5 py-1 text-xs text-[#ECECF1] placeholder:text-[#6C7082] outline-none"
+                  className="flex-1 bg-[#1E212B] border border-white/[0.06] rounded-lg px-2.5 py-1 text-xs text-[#EDEEF2] placeholder:text-[#6B7080] outline-none"
                   autoFocus
                 />
                 <button
                   type="button"
                   onClick={() => setShowEmotePicker(false)}
-                  className="p-1 text-[#8E92A4] hover:text-[#ECECF1] rounded cursor-pointer"
+                  className="p-1 text-[#A0A4B4] hover:text-[#EDEEF2] rounded cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1265,7 +1293,7 @@ export default function App() {
           {settings.oauthToken && settings.username ? (
             <form
               onSubmit={handleSendMessage}
-              className="flex items-center gap-1.5 bg-[#242631] border border-white/[0.06] rounded-xl px-2.5 py-1.5 shadow-sm focus-within:border-[#3B82F6] transition-colors"
+              className="flex items-center gap-1.5 bg-[#15171E] border border-white/[0.06] rounded-xl px-2.5 py-1.5 shadow-sm focus-within:border-[#7CF2C8]/50 transition-colors"
             >
               {/* Target channel selector / pill */}
               {joinedChannels.length > 1 ? (
@@ -1273,7 +1301,7 @@ export default function App() {
                   <select
                     value={activeSendChannel || joinedChannels[0]}
                     onChange={(e) => setActiveSendChannel(e.target.value)}
-                    className="appearance-none bg-[#181920] hover:bg-[#1E202B] text-[#ECECF1] text-[11px] font-semibold pl-2 pr-5 py-1 rounded-md border border-white/[0.06] outline-none cursor-pointer"
+                    className="appearance-none bg-[#1E212B] hover:bg-[#282C38] text-[#EDEEF2] text-[11px] font-semibold pl-2 pr-5 py-1 rounded-md border border-white/[0.06] outline-none cursor-pointer"
                     title="Выберите канал для отправки сообщения"
                   >
                     {joinedChannels.map((ch) => (
@@ -1282,15 +1310,15 @@ export default function App() {
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-3 h-3 text-[#8E92A4] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <ChevronDown className="w-3 h-3 text-[#A0A4B4] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               ) : (
                 <span
                   onClick={openSettings}
-                  className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-[#8E92A4] hover:text-[#ECECF1] px-1 py-0.5 rounded cursor-pointer transition-colors select-none"
+                  className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-[#A0A4B4] hover:text-[#EDEEF2] px-1 py-0.5 rounded cursor-pointer transition-colors select-none"
                   title="Нажмите для перехода в настройки каналов"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#7CF2C8] animate-pulse shrink-0" />
                   <span>#{activeSendChannel || joinedChannels[0] || 'chat'}</span>
                 </span>
               )}
@@ -1308,7 +1336,7 @@ export default function App() {
                     ? 'Сначала подключите канал в настройках...'
                     : `Сообщение в #${activeSendChannel || joinedChannels[0]}...`
                 }
-                className="flex-1 min-w-0 bg-transparent text-xs text-[#ECECF1] placeholder:text-[#6C7082] outline-none select-text disabled:opacity-50"
+                className="flex-1 min-w-0 bg-transparent text-xs text-[#EDEEF2] placeholder:text-[#6B7080] outline-none select-text disabled:opacity-50"
               />
 
               {/* Emote Picker button */}
@@ -1318,7 +1346,7 @@ export default function App() {
                 className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer shrink-0 ${
                   showEmotePicker
                     ? 'bg-purple-500/20 text-purple-400'
-                    : 'text-[#8E92A4] hover:text-[#ECECF1] hover:bg-white/[0.04]'
+                    : 'text-[#A0A4B4] hover:text-[#EDEEF2] hover:bg-white/[0.04]'
                 }`}
                 title="Смайлы (7TV, BTTV, FFZ, Twitch)"
               >
@@ -1329,7 +1357,7 @@ export default function App() {
               <button
                 type="submit"
                 disabled={!chatInput.trim() || isSending || joinedChannels.length === 0}
-                className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#3B82F6] hover:bg-blue-600 disabled:opacity-30 disabled:hover:bg-[#3B82F6] text-white transition-all cursor-pointer shrink-0 shadow-xs"
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#7CF2C8] hover:bg-[#9af7d8] disabled:opacity-30 text-[#0E0F13] font-bold transition-all cursor-pointer shrink-0 shadow-xs"
                 title="Отправить (Enter)"
               >
                 <Send className="w-3.5 h-3.5" />
@@ -1340,17 +1368,17 @@ export default function App() {
             <button
               type="button"
               onClick={openSettings}
-              className="w-full flex items-center justify-between p-2 rounded-xl bg-[#242631] hover:bg-[#2C2E3C] border border-white/[0.06] text-xs transition-colors cursor-pointer group"
+              className="w-full flex items-center justify-between p-2 rounded-xl bg-[#15171E] hover:bg-[#1E212B] border border-white/[0.06] text-xs transition-colors cursor-pointer group"
             >
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-md bg-[#9146FF] flex items-center justify-center text-white shrink-0 shadow-xs">
                   <TwitchIcon className="w-3.5 h-3.5 fill-white text-white" />
                 </span>
-                <span className="text-[#8E92A4] group-hover:text-[#ECECF1] transition-colors text-left text-[11px]">
+                <span className="text-[#A0A4B4] group-hover:text-[#EDEEF2] transition-colors text-left text-[11px]">
                   Войдите через Twitch, чтобы писать в чат
                 </span>
               </div>
-              <span className="text-[11px] font-semibold text-[#3B82F6] flex items-center gap-1 shrink-0">
+              <span className="text-[11px] font-semibold text-[#7CF2C8] flex items-center gap-1 shrink-0">
                 <span>Войти</span>
                 <LogIn className="w-3 h-3" />
               </span>
@@ -1358,6 +1386,7 @@ export default function App() {
           )}
         </footer>
       )}
+      </div>
     </div>
   );
 }

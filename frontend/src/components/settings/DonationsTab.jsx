@@ -6,8 +6,10 @@ import {
   Play,
   Key,
 } from 'lucide-react';
+import PageHeader from './PageHeader';
 
 export default function DonationsTab({
+  isWide = true,
   formData,
   updateAndSave,
   daTestResult,
@@ -18,7 +20,18 @@ export default function DonationsTab({
   setActiveTab,
 }) {
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="w-full font-['Manrope',sans-serif]">
+      {isWide && (
+        <PageHeader
+          title="Донаты (DA)"
+          description="Оповещения DonationAlerts, сбор средств и оверлеи"
+          badge={{
+            text: formData.daEnabled ? 'DonationAlerts активен' : 'Отключено',
+            status: formData.daEnabled ? 'ok' : 'off',
+          }}
+        />
+      )}
+      <div className="space-y-5 animate-fade-in">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-[#302111] via-[#241a1c] to-[#1a1b24] rounded-2xl p-5 border border-amber-500/25 shadow-sm relative overflow-hidden">
         <div className="relative z-10 space-y-1">
@@ -225,6 +238,7 @@ export default function DonationsTab({
           </button>
         </div>
       </div>
+    </div>
     </div>
   );
 }

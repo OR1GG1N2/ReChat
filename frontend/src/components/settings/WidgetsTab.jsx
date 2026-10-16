@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Volume2,
 } from 'lucide-react';
+import PageHeader from './PageHeader';
 import {
   GetWidgetURL,
   GetWidgetThemes,
@@ -129,6 +130,14 @@ export default function WidgetsTab({
   if (!activeSubTab || activeSubTab === 'catalog') {
     return (
       <div className="space-y-6 animate-fade-in font-sans">
+        <PageHeader
+          title="Виджеты OBS"
+          description="Браузерные источники: скопируйте ссылку и вставьте в OBS Studio"
+          badge={{
+            text: 'Сервер виджетов работает · :3500',
+            status: 'ok',
+          }}
+        />
         {/* Header Banner */}
         <div className="bg-gradient-to-r from-[#201a33] via-[#1a232c] to-[#142320] rounded-2xl p-5 border border-white/[0.06] shadow-sm relative overflow-hidden">
           <div className="relative z-10 space-y-1">

@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"ReChat/media"
+	"ReChat/music"
+
+	"github.com/gorilla/websocket"
 )
 
 // WidgetMessage is the payload sent over SSE to the OBS browser source.
@@ -57,6 +60,10 @@ type WidgetServer struct {
 	musicClientsMu sync.RWMutex
 	musicClients   map[*sseClient]struct{}
 
+	musicService     *music.Service
+	musicWSClientsMu sync.RWMutex
+	musicWSClients   map[*websocket.Conn]struct{}
+
 	mediaManager       *media.Manager
 	currentMusicConfig map[string]interface{}
 
@@ -96,8 +103,19 @@ func NewWidgetServer(port int) *WidgetServer {
 		themesDir:      ThemesDir(),
 		clients:        make(map[*sseClient]struct{}),
 		musicClients:   make(map[*sseClient]struct{}),
+		musicWSClients: make(map[*websocket.Conn]struct{}),
 		recentMessages: make([]WidgetMessage, 0, 20),
 		stopChan:       make(chan struct{}),
+	}
+}
+
+// SetMusicService sets the music service reference and registers state broadcasting callback.
+func (ws *WidgetServer) SetMusicService(svc *music.Service) {
+	ws.musicService = svc
+	if svc != nil {
+		svc.SetOnStateChange(func(st music.MusicState) {
+			ws.BroadcastMusicState(st)
+		})
 	}
 }
 
@@ -163,6 +181,8 @@ func (ws *WidgetServer) Start() {
 	// Music widget endpoints
 	mux.HandleFunc("/widget/music", ws.handleMusic)
 	mux.HandleFunc("/widget/music/events", ws.handleMusicSSE)
+	mux.HandleFunc("/widget/music/ws", ws.handleMusicWS)
+	mux.HandleFunc("/ws/music", ws.handleMusicWS)
 	mux.HandleFunc("/widget/music/assets/", ws.handleMusicAssets)
 	mux.HandleFunc("/widget/music/themes", ws.handleMusicThemesList)
 	mux.HandleFunc("/widget/music/test", ws.handleMusicTest)
@@ -324,6 +344,28 @@ func (ws *WidgetServer) BroadcastMusicTrack(track media.TrackInfo) {
 	_ = ws.Emit(TargetMusic, "track", track)
 }
 
+// BroadcastMusicState sends real-time queue and playback state to all connected WebSocket clients.
+func (ws *WidgetServer) BroadcastMusicState(state music.MusicState) {
+	ws.musicWSClientsMu.RLock()
+	defer ws.musicWSClientsMu.RUnlock()
+
+	if len(ws.musicWSClients) == 0 {
+		return
+	}
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"type": "state",
+		"data": state,
+	})
+	if err != nil {
+		return
+	}
+
+	for client := range ws.musicWSClients {
+		_ = client.WriteMessage(websocket.TextMessage, payload)
+	}
+}
+
 // BroadcastAvatarUpdate sends an avatar update event to all connected SSE clients.
 func (ws *WidgetServer) BroadcastAvatarUpdate(user, avatarURL string) {
 	if user == "" || avatarURL == "" {
@@ -470,6 +512,120 @@ func (ws *WidgetServer) handleMusicSSE(w http.ResponseWriter, r *http.Request) {
 		case <-heartbeat.C:
 			_, _ = fmt.Fprintf(w, ": heartbeat\n\n")
 			flusher.Flush()
+		}
+	}
+}
+
+var musicWSUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Allow all local, OBS, and web origins
+	},
+}
+
+func (ws *WidgetServer) handleMusicWS(w http.ResponseWriter, r *http.Request) {
+	conn, err := musicWSUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("[Widget] Music WS upgrade failed: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	ws.musicWSClientsMu.Lock()
+	ws.musicWSClients[conn] = struct{}{}
+	ws.musicWSClientsMu.Unlock()
+
+	defer func() {
+		ws.musicWSClientsMu.Lock()
+		delete(ws.musicWSClients, conn)
+		ws.musicWSClientsMu.Unlock()
+	}()
+
+	// Send current state snapshot immediately upon connection
+	if ws.musicService != nil {
+		st := ws.musicService.GetState()
+		msg, _ := json.Marshal(map[string]interface{}{
+			"type": "state",
+			"data": st,
+		})
+		_ = conn.WriteMessage(websocket.TextMessage, msg)
+	}
+
+	for {
+		_, p, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+
+		var cmd struct {
+			Action      string  `json:"action"`
+			From        int     `json:"from"`
+			To          int     `json:"to"`
+			ID          string  `json:"id"`
+			Query       string  `json:"query"`
+			User        string  `json:"user"`
+			Platform    string  `json:"platform"`
+			Cost        string  `json:"cost"`
+			CurrentTime float64 `json:"currentTime"`
+			IsPlaying   bool    `json:"isPlaying"`
+			Volume      int     `json:"volume"`
+			Reason      string  `json:"reason"`
+		}
+		if err := json.Unmarshal(p, &cmd); err != nil {
+			continue
+		}
+
+		if ws.musicService == nil {
+			continue
+		}
+
+		switch cmd.Action {
+		case "getState":
+			st := ws.musicService.GetState()
+			resp, _ := json.Marshal(map[string]interface{}{
+				"type": "state",
+				"data": st,
+			})
+			_ = conn.WriteMessage(websocket.TextMessage, resp)
+		case "reorder":
+			_ = ws.musicService.Reorder(cmd.From, cmd.To)
+		case "moveUp":
+			_ = ws.musicService.MoveUp(cmd.ID)
+		case "remove":
+			_ = ws.musicService.Remove(cmd.ID)
+		case "approve":
+			_ = ws.musicService.Approve(cmd.ID)
+		case "reject":
+			_ = ws.musicService.Reject(cmd.ID, cmd.Reason)
+		case "next":
+			_, _ = ws.musicService.Next()
+		case "prev":
+			_, _ = ws.musicService.Prev()
+		case "skip":
+			_ = ws.musicService.Skip()
+		case "playFromHistory":
+			_, _ = ws.musicService.PlayFromHistory(cmd.ID)
+		case "requeueFromHistory":
+			_, _ = ws.musicService.RequeueFromHistory(cmd.ID)
+		case "clearQueue":
+			_ = ws.musicService.ClearQueue()
+		case "clearHistory":
+			_ = ws.musicService.ClearHistory()
+		case "add":
+			user := cmd.User
+			if user == "" {
+				user = "Стример"
+			}
+			plat := cmd.Platform
+			if plat == "" {
+				plat = "manual"
+			}
+			cost := cmd.Cost
+			if cost == "" {
+				cost = "Вручную"
+			}
+			_, _ = ws.musicService.AddTrack(cmd.Query, user, plat, cost)
+		case "updatePlayback":
+			_ = ws.musicService.UpdatePlayback(cmd.CurrentTime, cmd.IsPlaying, cmd.Volume)
 		}
 	}
 }

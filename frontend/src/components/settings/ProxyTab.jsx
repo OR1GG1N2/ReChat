@@ -7,8 +7,10 @@ import {
   Loader2,
   Eye,
 } from 'lucide-react';
+import PageHeader from './PageHeader';
 
 export default function ProxyTab({
+  isWide = true,
   formData,
   updateAndSave,
   wgTunnelActive,
@@ -22,7 +24,20 @@ export default function ProxyTab({
   proxyTestResult,
 }) {
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="w-full font-['Manrope',sans-serif]">
+      {isWide && (
+        <PageHeader
+          title="Прокси и Сеть"
+          description="HTTP, SOCKS5 и встроенный WireGuard туннель"
+          badge={{
+            text: formData.proxyEnabled
+              ? `Прокси активен (${formData.proxyType?.toUpperCase() || 'HTTP'})`
+              : 'Прямое подключение',
+            status: formData.proxyEnabled ? 'ok' : 'off',
+          }}
+        />
+      )}
+      <div className="space-y-5 animate-fade-in">
       {/* Master Enable/Disable Card */}
       <div>
         <div className="text-xs font-semibold text-[#8E92A4] px-1 mb-1.5">Сеть и Прокси</div>
@@ -292,6 +307,7 @@ export default function ProxyTab({
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }

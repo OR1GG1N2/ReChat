@@ -23,6 +23,7 @@ import (
 	"ReChat/donationalerts"
 	"ReChat/pipeline"
 	"ReChat/kick"
+	"ReChat/music"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -42,6 +43,7 @@ type App struct {
 	daClient       *donationalerts.Client
 	pipeline       *pipeline.Pipeline
 	supertonicMgr  *tts.SupertonicManager
+	musicService   *music.Service
 	isGameMode     bool
 	lastToggleTime time.Time
 	gameModeMu     sync.Mutex
@@ -60,10 +62,12 @@ func NewApp() *App {
 		daClient:      donationalerts.NewClient(""),
 		pipeline:      pipeline.New(),
 		kickClient:    kick.NewClient(),
+		musicService:  music.NewService(proxy.GetHTTPClient),
 	}
 
 	app.widgetServer.SetBadgeFetcher(app.badgeFetcher.GetBadgeMap)
 	app.widgetServer.SetEmoteFetcher(app.emoteFetcher.GetEmoteMap)
+	app.widgetServer.SetMusicService(app.musicService)
 
 	// Wire pipeline sinks
 	app.pipeline.OnChatMessage(func(msg *twitch.ChatMessage) {
@@ -94,15 +98,17 @@ func NewApp() *App {
 		}
 	})
 
-	// Wire IRC client → pipeline widget sink
+	// Wire IRC client → pipeline widget sink and music order handler
 	app.twitchClient.SetMessageHandler(func(msg *twitch.ChatMessage) {
 		isEventSub := app.eventsubClient != nil && app.eventsubClient.IsRunning()
 		app.pipeline.ConsumeIRCMessage(msg, isEventSub)
+		app.handleMusicOrder(msg)
 	})
 
-	// Wire Kick client → pipeline sink
+	// Wire Kick client → pipeline sink and music order handler
 	app.kickClient.SetMessageHandler(func(msg *twitch.ChatMessage) {
 		app.pipeline.ConsumeIRCMessage(msg, false)
+		app.handleMusicOrder(msg)
 	})
 
 	// Suppress IRC custom-reward-id duplicates when EventSub is running
@@ -115,9 +121,10 @@ func NewApp() *App {
 		app.widgetServer.BroadcastAvatarUpdate(login, avatarURL)
 	})
 
-	// Wire EventSub client → pipeline (emits to both Wails frontend & OBS widget)
+	// Wire EventSub client → pipeline (emits to both Wails frontend & OBS widget) and music order handler
 	app.eventsubClient = twitch.NewEventSubClient(func(msg *twitch.ChatMessage) {
 		app.pipeline.ConsumeEventSubMessage(msg)
+		app.handleMusicOrder(msg)
 	})
 	return app
 }
@@ -131,6 +138,25 @@ func (a *App) startup(ctx context.Context) {
 	settings := config.LoadSettings()
 	proxy.Configure(settings)
 	a.twitchClient.SetContext(ctx)
+	if a.musicService != nil {
+		a.musicService.SetContext(ctx)
+		a.musicService.SetOnTrackStart(func(track *music.Track) {
+			rules := a.musicService.GetRules()
+			if rules.PauseSystemMedia && a.mediaManager != nil {
+				a.mediaManager.PauseSystemMedia(false)
+			}
+			if a.widgetServer != nil && track != nil {
+				a.widgetServer.BroadcastMusicTrack(media.TrackInfo{
+					Status:    "playing",
+					Title:     track.Title,
+					Artist:    track.Author,
+					Thumbnail: track.Thumbnail,
+					Source:    "YouTube",
+					Timestamp: time.Now().UnixMilli(),
+				})
+			}
+		})
+	}
 
 	// Emit Supertonic model download progress to frontend
 	if a.supertonicMgr != nil {
@@ -236,6 +262,18 @@ func (a *App) startup(ctx context.Context) {
 		func(ev donationalerts.DonationEvent) {
 			s := config.LoadSettings()
 			a.pipeline.ConsumeDonation(ev, &s)
+			if a.musicService != nil {
+				rules := a.musicService.GetRules()
+				if rules.OrdersEnabled && rules.DonationOrdersEnabled && ev.Amount >= rules.MinDonation && strings.TrimSpace(ev.Message) != "" {
+					costStr := fmt.Sprintf("%.0f ₽", ev.Amount)
+					go func() {
+						if rules.PauseSystemMedia && a.mediaManager != nil {
+							a.mediaManager.PauseSystemMedia(false)
+						}
+						_, _ = a.musicService.AddTrack(ev.Message, ev.Name, "donationalerts", costStr)
+					}()
+				}
+			}
 		},
 		func(ev donationalerts.GoalEvent) {
 			a.pipeline.ConsumeGoal(ev)
@@ -1215,4 +1253,263 @@ func (a *App) applyGameMode(enable bool) {
 	hwnd := overlay.FindMainWindow()
 	overlay.SetClickThrough(hwnd, enable)
 }
+
+// handleMusicOrder parses and processes orders from Twitch chat, Kick, or Channel Points rewards
+func (a *App) handleMusicOrder(msg *twitch.ChatMessage) {
+	if msg == nil || a.musicService == nil {
+		return
+	}
+
+	rules := a.musicService.GetRules()
+	if !rules.OrdersEnabled {
+		return
+	}
+
+	var query string
+	var platform string = "twitch"
+	var cost string = "Баллы"
+
+	// 1. Check if command: !заказ <query>, !sr <query>, !songrequest <query>
+	if q, isCmd := music.ParseCommand(msg.Message); isCmd {
+		if !rules.ChatCommandEnabled {
+			return
+		}
+		if strings.TrimSpace(q) == "" {
+			return
+		}
+		query = q
+		cost = "Чат"
+		if strings.HasPrefix(strings.ToLower(msg.Channel), "kick:") || msg.Badges == "kick" {
+			platform = "kick"
+			cost = "Kick"
+		}
+	} else if msg.EventType == "reward" {
+		if !rules.TwitchRewardEnabled {
+			return
+		}
+		// 2. Check if Twitch reward redemption
+		rewardTitle := strings.ToLower(msg.EventData["rewardTitle"])
+		targetTitle := strings.ToLower(rules.RewardTitle)
+		isMusicReward := (targetTitle != "" && strings.Contains(rewardTitle, targetTitle)) ||
+			strings.Contains(rewardTitle, "музык") ||
+			strings.Contains(rewardTitle, "песн") ||
+			strings.Contains(rewardTitle, "трек") ||
+			strings.Contains(rewardTitle, "song")
+
+		if isMusicReward && strings.TrimSpace(msg.Message) != "" {
+			query = strings.TrimSpace(msg.Message)
+			costVal := msg.EventData["rewardCost"]
+			if costVal == "" {
+				costVal = fmt.Sprintf("%d", rules.TwitchPoints)
+			}
+			cost = fmt.Sprintf("%s баллов", costVal)
+		}
+	}
+
+	if query == "" {
+		return
+	}
+
+	go func() {
+		track, err := a.musicService.AddTrack(query, msg.DisplayName, platform, cost)
+		if err != nil {
+			reply := fmt.Sprintf("@%s, заказ не принят: %s", msg.DisplayName, err.Error())
+			_ = a.SendMessage(msg.Channel, reply)
+			return
+		}
+
+		if track.Status == music.StatusPending {
+			reason := track.RejectReason
+			if reason == "" {
+				reason = "требуется подтверждение модератора"
+			}
+			reply := fmt.Sprintf("@%s, трек «%s» отправлен на модерацию (%s)", msg.DisplayName, track.Title, reason)
+			_ = a.SendMessage(msg.Channel, reply)
+			return
+		}
+
+		if track.Status == music.StatusPlaying {
+			reply := fmt.Sprintf("@%s, трек «%s» играет прямо сейчас!", msg.DisplayName, track.Title)
+			_ = a.SendMessage(msg.Channel, reply)
+			return
+		}
+
+		reply := fmt.Sprintf("@%s, трек «%s» добавлен в очередь! Позиция #%d", msg.DisplayName, track.Title, track.Position)
+		_ = a.SendMessage(msg.Channel, reply)
+	}()
+}
+
+// MusicGetState returns current playback state, queue, moderation, and history
+func (a *App) MusicGetState() music.MusicState {
+	if a.musicService == nil {
+		return music.MusicState{}
+	}
+	return a.musicService.GetState()
+}
+
+// MusicGetRules returns music order rules
+func (a *App) MusicGetRules() music.MusicRules {
+	if a.musicService == nil {
+		return music.DefaultMusicRules()
+	}
+	return a.musicService.GetRules()
+}
+
+// MusicUpdateRules updates music order rules
+func (a *App) MusicUpdateRules(rules music.MusicRules) error {
+	if a.musicService == nil {
+		return fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.UpdateRules(rules)
+}
+
+// MusicAddTrack adds a track to queue manually
+func (a *App) MusicAddTrack(rawInput, platform, cost string) (*music.Track, error) {
+	if a.musicService == nil {
+		return nil, fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	user := "Стример"
+	settings := config.LoadSettings()
+	if settings.Username != "" {
+		user = settings.Username
+	}
+	if platform == "" {
+		platform = "manual"
+	}
+	if cost == "" {
+		cost = "Вручную"
+	}
+	return a.musicService.AddTrack(rawInput, user, platform, cost)
+}
+
+// MusicRemoveTrack removes a track by ID from queue or moderation
+func (a *App) MusicRemoveTrack(trackID string) error {
+	if a.musicService == nil {
+		return fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.Remove(trackID)
+}
+
+// MusicMoveUp moves a track one position up
+func (a *App) MusicMoveUp(trackID string) error {
+	if a.musicService == nil {
+		return fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.MoveUp(trackID)
+}
+
+// MusicReorder reorders a track in queue
+func (a *App) MusicReorder(fromIndex, toIndex int) error {
+	if a.musicService == nil {
+		return fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.Reorder(fromIndex, toIndex)
+}
+
+// MusicSkip skips the current playing track
+func (a *App) MusicSkip() error {
+	if a.musicService == nil {
+		return fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.Skip()
+}
+
+// MusicNext transitions to the next track in queue
+func (a *App) MusicNext() (*music.Track, error) {
+	if a.musicService == nil {
+		return nil, fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.Next()
+}
+
+// MusicApprove approves a track from moderation
+func (a *App) MusicApprove(trackID string) error {
+	if a.musicService == nil {
+		return fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.Approve(trackID)
+}
+
+// MusicReject rejects a track from moderation
+func (a *App) MusicReject(trackID string, reason string) error {
+	if a.musicService == nil {
+		return fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.Reject(trackID, reason)
+}
+
+// MusicUpdatePlayback synchronizes current playback time, pause state, and volume
+func (a *App) MusicUpdatePlayback(currentTime float64, isPlaying bool, volume int) error {
+	if a.musicService == nil {
+		return fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	err := a.musicService.UpdatePlayback(currentTime, isPlaying, volume)
+	if err == nil && a.widgetServer != nil {
+		st := a.musicService.GetState()
+		if st.CurrentTrack != nil {
+			status := "paused"
+			if isPlaying {
+				status = "playing"
+			}
+			a.widgetServer.BroadcastMusicTrack(media.TrackInfo{
+				Status:    status,
+				Title:     st.CurrentTrack.Title,
+				Artist:    st.CurrentTrack.Author,
+				Thumbnail: st.CurrentTrack.Thumbnail,
+				Source:    "YouTube",
+				Timestamp: time.Now().UnixMilli(),
+			})
+		}
+	}
+	return err
+}
+
+// MusicClearQueue clears all tracks from active queue
+func (a *App) MusicClearQueue() error {
+	if a.musicService == nil {
+		return fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.ClearQueue()
+}
+
+// MusicClearHistory clears track history
+func (a *App) MusicClearHistory() error {
+	if a.musicService == nil {
+		return fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.ClearHistory()
+}
+
+// MusicPrev plays the previous track from history
+func (a *App) MusicPrev() (*music.Track, error) {
+	if a.musicService == nil {
+		return nil, fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.Prev()
+}
+
+// MusicPlayFromHistory plays a track from history immediately
+func (a *App) MusicPlayFromHistory(trackID string) (*music.Track, error) {
+	if a.musicService == nil {
+		return nil, fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.PlayFromHistory(trackID)
+}
+
+// MusicRequeueFromHistory adds a track from history back to the queue
+func (a *App) MusicRequeueFromHistory(trackID string) (*music.Track, error) {
+	if a.musicService == nil {
+		return nil, fmt.Errorf("музыкальный сервис не инициализирован")
+	}
+	return a.musicService.RequeueFromHistory(trackID)
+}
+
+// MusicPauseSystemMedia pauses background system media players (Spotify/Yandex Music)
+func (a *App) MusicPauseSystemMedia() error {
+	if a.mediaManager != nil {
+		a.mediaManager.PauseSystemMedia(true)
+	}
+	return nil
+}
+
 

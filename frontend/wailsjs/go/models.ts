@@ -165,6 +165,166 @@ export namespace config {
 
 }
 
+export namespace music {
+	
+	export class MusicRules {
+	    ordersEnabled: boolean;
+	    chatCommandEnabled: boolean;
+	    twitchRewardEnabled: boolean;
+	    donationOrdersEnabled: boolean;
+	    webOrdersEnabled: boolean;
+	    source: string;
+	    twitchPoints: number;
+	    rewardTitle: string;
+	    minDonation: number;
+	    maxTracksPerUser: number;
+	    blockPlaylists: boolean;
+	    maxDurationSec: number;
+	    manualApproval: boolean;
+	    interruptOnRequest: boolean;
+	    pauseSystemMedia: boolean;
+	    blacklistChannels: string[];
+	    blacklistTracks: string[];
+	    youtubeApiKey: string;
+	    fallbackQuery: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MusicRules(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ordersEnabled = source["ordersEnabled"];
+	        this.chatCommandEnabled = source["chatCommandEnabled"];
+	        this.twitchRewardEnabled = source["twitchRewardEnabled"];
+	        this.donationOrdersEnabled = source["donationOrdersEnabled"];
+	        this.webOrdersEnabled = source["webOrdersEnabled"];
+	        this.source = source["source"];
+	        this.twitchPoints = source["twitchPoints"];
+	        this.rewardTitle = source["rewardTitle"];
+	        this.minDonation = source["minDonation"];
+	        this.maxTracksPerUser = source["maxTracksPerUser"];
+	        this.blockPlaylists = source["blockPlaylists"];
+	        this.maxDurationSec = source["maxDurationSec"];
+	        this.manualApproval = source["manualApproval"];
+	        this.interruptOnRequest = source["interruptOnRequest"];
+	        this.pauseSystemMedia = source["pauseSystemMedia"];
+	        this.blacklistChannels = source["blacklistChannels"];
+	        this.blacklistTracks = source["blacklistTracks"];
+	        this.youtubeApiKey = source["youtubeApiKey"];
+	        this.fallbackQuery = source["fallbackQuery"];
+	    }
+	}
+	export class Track {
+	    id: string;
+	    videoId: string;
+	    title: string;
+	    author: string;
+	    duration: number;
+	    durationStr: string;
+	    thumbnail: string;
+	    requestedBy: string;
+	    platform: string;
+	    cost: string;
+	    status: string;
+	    rejectReason: string;
+	    position: number;
+	    // Go type: time
+	    createdAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Track(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.videoId = source["videoId"];
+	        this.title = source["title"];
+	        this.author = source["author"];
+	        this.duration = source["duration"];
+	        this.durationStr = source["durationStr"];
+	        this.thumbnail = source["thumbnail"];
+	        this.requestedBy = source["requestedBy"];
+	        this.platform = source["platform"];
+	        this.cost = source["cost"];
+	        this.status = source["status"];
+	        this.rejectReason = source["rejectReason"];
+	        this.position = source["position"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MusicState {
+	    currentTrack?: Track;
+	    queue: Track[];
+	    moderation: Track[];
+	    history: Track[];
+	    totalQueueCount: number;
+	    totalQueueDuration: number;
+	    totalQueueDurationStr: string;
+	    isPlaying: boolean;
+	    currentTime: number;
+	    volume: number;
+	    rules: MusicRules;
+	
+	    static createFrom(source: any = {}) {
+	        return new MusicState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentTrack = this.convertValues(source["currentTrack"], Track);
+	        this.queue = this.convertValues(source["queue"], Track);
+	        this.moderation = this.convertValues(source["moderation"], Track);
+	        this.history = this.convertValues(source["history"], Track);
+	        this.totalQueueCount = source["totalQueueCount"];
+	        this.totalQueueDuration = source["totalQueueDuration"];
+	        this.totalQueueDurationStr = source["totalQueueDurationStr"];
+	        this.isPlaying = source["isPlaying"];
+	        this.currentTime = source["currentTime"];
+	        this.volume = source["volume"];
+	        this.rules = this.convertValues(source["rules"], MusicRules);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace tts {
 	
 	export class SupertonicStatus {

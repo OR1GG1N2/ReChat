@@ -5,6 +5,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -12,6 +13,16 @@ import (
 	"sync"
 	"syscall"
 	"time"
+)
+
+var (
+	modUser32     = syscall.NewLazyDLL("user32.dll")
+	procKeybdEvent = modUser32.NewProc("keybd_event")
+)
+
+const (
+	VK_MEDIA_PLAY_PAUSE = 0xB3 // 179
+	KEYEVENTF_KEYUP     = 0x0002
 )
 
 //go:embed mediawatcher.exe
@@ -35,6 +46,7 @@ type Manager struct {
 	listeners []func(TrackInfo)
 
 	cmd    *exec.Cmd
+	stdin  io.WriteCloser
 	cancel context.CancelFunc
 	done   chan struct{}
 }
@@ -126,6 +138,8 @@ func (m *Manager) runLoop(ctx context.Context, exePath string) {
 			continue
 		}
 
+		stdin, _ := cmd.StdinPipe()
+
 		if err := cmd.Start(); err != nil {
 			log.Printf("[MediaManager] Start error: %v", err)
 			time.Sleep(3 * time.Second)
@@ -134,6 +148,7 @@ func (m *Manager) runLoop(ctx context.Context, exePath string) {
 
 		m.mu.Lock()
 		m.cmd = cmd
+		m.stdin = stdin
 		m.mu.Unlock()
 
 		scanner := bufio.NewScanner(stdout)
@@ -185,6 +200,36 @@ func (m *Manager) Stop() {
 	}
 	m.mu.Unlock()
 	killOrphanMediaWatcher()
+}
+
+// PauseSystemMedia pauses external media players (Spotify, Yandex Music, Chrome, etc.) in Windows
+func (m *Manager) PauseSystemMedia(force bool) {
+	m.mu.RLock()
+	isPlaying := m.current.Status == "playing"
+	stdin := m.stdin
+	m.mu.RUnlock()
+
+	// 1. Try sending "pause" command to mediawatcher (uses WinRT TryPauseAsync)
+	if stdin != nil {
+		_, _ = stdin.Write([]byte("pause\n"))
+	}
+
+	// 2. Also simulate media key if system was playing or forced
+	if isPlaying || force {
+		procKeybdEvent.Call(uintptr(VK_MEDIA_PLAY_PAUSE), 0, 0, 0)
+		procKeybdEvent.Call(uintptr(VK_MEDIA_PLAY_PAUSE), 0, KEYEVENTF_KEYUP, 0)
+	}
+}
+
+// ResumeSystemMedia resumes external media players
+func (m *Manager) ResumeSystemMedia() {
+	m.mu.RLock()
+	stdin := m.stdin
+	m.mu.RUnlock()
+
+	if stdin != nil {
+		_, _ = stdin.Write([]byte("play\n"))
+	}
 }
 
 func (m *Manager) ensureWatcherBinary() string {

@@ -1,4 +1,5 @@
 import React from 'react';
+import PageHeader from './PageHeader';
 
 export default function FiltersTab({
   isWide,
@@ -10,7 +11,18 @@ export default function FiltersTab({
   handleRemoveIgnoredUser,
 }) {
   return (
-    <div className={`space-y-4 ${isWide ? 'grid grid-cols-1 gap-4' : 'max-w-lg mx-auto'}`}>
+    <div className="w-full font-['Manrope',sans-serif]">
+      {isWide && (
+        <PageHeader
+          title="Фильтры"
+          description="Игнорируемые боты, команды и фильтрация спама"
+          badge={{
+            text: 'Фильтры чата активны',
+            status: 'ok',
+          }}
+        />
+      )}
+      <div className={`space-y-4 ${isWide ? 'grid grid-cols-1 gap-4' : 'max-w-lg mx-auto'}`}>
       <div>
         <div className="text-xs font-semibold text-[#8E92A4] px-1 mb-1.5">
           Фильтры чата (Chat Filters)
@@ -109,6 +121,7 @@ export default function FiltersTab({
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

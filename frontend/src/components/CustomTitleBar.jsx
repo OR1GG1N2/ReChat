@@ -1,11 +1,14 @@
 import React from 'react';
 import { WindowMinimise, WindowToggleMaximise, Quit } from '../../wailsjs/runtime/runtime';
 import { QuitApp } from '../../wailsjs/go/main/App';
-import { Settings, Minus, Square, X, ArrowLeft, Gamepad2 } from 'lucide-react';
+import { Minus, Square, X, ArrowLeft, Gamepad2, Settings } from 'lucide-react';
+
+const DRAG = { '--wails-draggable': 'drag' };
+const NO_DRAG = { '--wails-draggable': 'no-drag' };
 
 export default function CustomTitleBar({
   isSettingsMode = false,
-  settingsTitle = 'Appearance',
+  settingsTitle = 'ReChat',
   onOpenSettings,
   onCloseSettings,
   onBack,
@@ -13,21 +16,20 @@ export default function CustomTitleBar({
 }) {
   return (
     <header
-      className="h-8 bg-[#181920] border-b border-white/[0.04] flex items-center justify-between px-2.5 font-sans text-xs text-[#9E9EB2] select-none shrink-0 tracking-tight transition-colors"
-      style={{ '--wails-draggable': 'drag' }}
-      onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      className="h-8 bg-[#0E0F13] border-b border-white/[0.06] flex items-center justify-between px-2.5 font-sans text-xs text-[#A0A4B4] select-none shrink-0 tracking-tight transition-colors z-40"
+      style={DRAG}
+      onDoubleClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
     >
       {/* Left side / Title area: always draggable */}
-      <div
-        className="flex items-center gap-2 flex-1 min-w-0 h-full"
-        style={{ '--wails-draggable': 'drag' }}
-      >
+      <div className="flex items-center gap-2 flex-1 min-w-0 h-full" style={DRAG}>
         {isSettingsMode ? (
           <div className="flex items-center gap-2 h-full">
             <button
-              key="titlebar-back"
               type="button"
-              style={{ '--wails-draggable': 'no-drag' }}
+              style={NO_DRAG}
               onClick={(e) => {
                 e.stopPropagation();
                 if (onBack) onBack();
@@ -40,33 +42,30 @@ export default function CustomTitleBar({
             </button>
             <span
               className="text-sm font-semibold text-[#ECECF1] tracking-tight truncate select-none"
-              style={{ '--wails-draggable': 'drag' }}
+              style={DRAG}
             >
               {settingsTitle}
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-            <span className="font-semibold text-[11px] text-[#6C7082] tracking-wider uppercase">
+          <div className="flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity">
+            <span className="w-2.5 h-2.5 rounded-[3px] bg-[#7CF2C8] shrink-0" />
+            <span className="font-bold text-xs text-[#ECECF1] tracking-wider">
               ReChat
             </span>
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-amber-400/90 font-medium tracking-tight">
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-amber-400/90 font-medium">
               1.1 - Alpha
             </span>
           </div>
         )}
       </div>
 
-      {/* Right side: Settings button (in chat mode) / Close view (in settings mode) + Windows controls */}
-      <div
-        className="flex items-center gap-1 shrink-0"
-        style={{ '--wails-draggable': 'no-drag' }}
-      >
+      {/* Right side: Controls */}
+      <div className="flex items-center gap-1 shrink-0" style={NO_DRAG}>
         {isSettingsMode ? (
           <button
-            key="titlebar-close-settings"
             type="button"
-            style={{ '--wails-draggable': 'no-drag' }}
+            style={NO_DRAG}
             onClick={(e) => {
               e.stopPropagation();
               if (onCloseSettings) onCloseSettings();
@@ -79,9 +78,8 @@ export default function CustomTitleBar({
         ) : (
           <>
             <button
-              key="titlebar-gamemode"
               type="button"
-              style={{ '--wails-draggable': 'no-drag' }}
+              style={NO_DRAG}
               onClick={(e) => {
                 e.stopPropagation();
                 if (onToggleGameMode) onToggleGameMode();
@@ -92,9 +90,8 @@ export default function CustomTitleBar({
               <Gamepad2 className="w-3.5 h-3.5" />
             </button>
             <button
-              key="titlebar-settings"
               type="button"
-              style={{ '--wails-draggable': 'no-drag' }}
+              style={NO_DRAG}
               onClick={(e) => {
                 e.stopPropagation();
                 if (onOpenSettings) onOpenSettings();
@@ -109,9 +106,8 @@ export default function CustomTitleBar({
 
         {/* Windows System Control Buttons */}
         <button
-          key="titlebar-minimize"
           type="button"
-          style={{ '--wails-draggable': 'no-drag' }}
+          style={NO_DRAG}
           onClick={(e) => {
             e.stopPropagation();
             WindowMinimise();
@@ -122,9 +118,8 @@ export default function CustomTitleBar({
           <Minus className="w-3.5 h-3.5" />
         </button>
         <button
-          key="titlebar-maximize"
           type="button"
-          style={{ '--wails-draggable': 'no-drag' }}
+          style={NO_DRAG}
           onClick={(e) => {
             e.stopPropagation();
             WindowToggleMaximise();
@@ -135,9 +130,8 @@ export default function CustomTitleBar({
           <Square className="w-2.5 h-2.5" />
         </button>
         <button
-          key="titlebar-quit"
           type="button"
-          style={{ '--wails-draggable': 'no-drag' }}
+          style={NO_DRAG}
           onClick={(e) => {
             e.stopPropagation();
             if (typeof QuitApp === 'function') {

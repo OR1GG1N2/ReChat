@@ -47,6 +47,39 @@ class Program
                 manager.CurrentSessionChanged += async (s, e) => await CheckAndEmit();
             }
 
+            // Listen for stdin commands (e.g. "pause", "play") to control system media
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        var line = await Console.In.ReadLineAsync();
+                        if (line == null) break;
+                        line = line.Trim().ToLowerInvariant();
+                        if (line == "pause")
+                        {
+                            if (manager == null) manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                            var session = manager?.GetCurrentSession();
+                            if (session != null)
+                            {
+                                await session.TryPauseAsync();
+                            }
+                        }
+                        else if (line == "play")
+                        {
+                            if (manager == null) manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                            var session = manager?.GetCurrentSession();
+                            if (session != null)
+                            {
+                                await session.TryPlayAsync();
+                            }
+                        }
+                    }
+                }
+                catch { }
+            });
+
             // Also poll every 1s to catch position or state changes that don't trigger events
             while (true)
             {
